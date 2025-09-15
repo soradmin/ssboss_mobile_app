@@ -1,0 +1,6 @@
+{
+  "api_base_url": "https://ssboss.shop/api/v1",
+  "cdn_base_url": "https://ssboss.shop",
+  "images_path": "/uploads",
+  "bearer": ""
+}

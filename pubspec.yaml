@@ -1,0 +1,27 @@
+name: ssboss_wb_app
+description: SSBOSS mobile app (stable WB-like snapshot)
+publish_to: "none"
+
+environment:
+  sdk: ">=3.3.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_riverpod: ^2.5.1
+  go_router: ^14.2.1
+  dio: ^5.9.0
+  shared_preferences: ^2.5.3
+  carousel_slider: ^5.0.0
+  encrypt: ^5.0.3       # AES/CBC
+  flutter_dotenv: ^6.0.0 # для KEY/IV из .env
+  http: ^1.2.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/app_config.json
