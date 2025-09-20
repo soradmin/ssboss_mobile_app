@@ -14,8 +14,11 @@ dependencies:
   shared_preferences: ^2.5.3
   carousel_slider: ^5.0.0
   encrypt: ^5.0.3       # AES/CBC
+  path_provider: ^2.1.5
   flutter_dotenv: ^6.0.0 # для KEY/IV из .env
   http: ^1.2.2
+  dio_cookie_manager: ^3.3.0
+  cookie_jar: ^4.0.8
 
 dev_dependencies:
   flutter_test:
