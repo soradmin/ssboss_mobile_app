@@ -1,0 +1,267 @@
+{
+    "ar-SA": {
+        "name": "Arabic (Saudi Arabia) (١٬٢٣٤٬٥٦٧٫٨٩)",
+        "code": "ar-SA",
+        "format": "١٬٢٣٤٬٥٦٧٫٨٩"
+    },
+    "bn-BD": {
+        "name": "Bangla (Bangladesh) (১২,৩৪,৫৬৭.৮৯)",
+        "code": "bn-BD",
+        "format": "১২,৩৪,৫৬৭.৮৯"
+    },
+    "bn-IN": {
+        "name": "Bangla (India) (১২,৩৪,৫৬৭.৮৯)",
+        "code": "bn-IN",
+        "format": "১২,৩৪,৫৬৭.৮৯"
+    },
+    "cs-CZ": {
+        "name": "Czech (Czech Republic) (1 234 567,89)",
+        "code": "cs-CZ",
+        "format": "1 234 567,89"
+    },
+    "da-DK": {
+        "name": "Danish (Denmark) (1.234.567,89)",
+        "code": "da-DK",
+        "format": "1.234.567,89"
+    },
+    "de-AT": {
+        "name": "Austrian German(1 234 567,89)",
+        "code": "de-AT",
+        "format": "1 234 567,89"
+    },
+    "de-CH": {
+        "name": "\"Swiss\" German(1’234’567.89)",
+        "code": "de-CH",
+        "format": "1’234’567.89"
+    },
+    "de-DE": {
+        "name": "Standard German (1.234.567,89)",
+        "code": "de-DE",
+        "format": "1.234.567,89"
+    },
+    "el-GR": {
+        "name": "Modern Greek(1.234.567,89)",
+        "code": "el-GR",
+        "format": "1.234.567,89"
+    },
+    "en-AU": {
+        "name": "Australian English(1,234,567.89)",
+        "code": "en-AU",
+        "format": "1,234,567.89"
+    },
+    "en-CA": {
+        "name": "Canadian English(1,234,567.89)",
+        "code": "en-CA",
+        "format": "1,234,567.89"
+    },
+    "en-GB": {
+        "name": "British English(1,234,567.89)",
+        "code": "en-GB",
+        "format": "1,234,567.89"
+    },
+    "en-IE": {
+        "name": "Irish English(1,234,567.89)",
+        "code": "en-IE",
+        "format": "1,234,567.89"
+    },
+    "en-IN": {
+        "name": "Indian English(12,34,567.89)",
+        "code": "en-IN",
+        "format": "12,34,567.89"
+    },
+    "en-NZ": {
+        "name": "New Zealand English(1,234,567.89)",
+        "code": "en-NZ",
+        "format": "1,234,567.89"
+    },
+    "en-US": {
+        "name": "US English(1,234,567.89)",
+        "code": "en-US",
+        "format": "1,234,567.89"
+    },
+    "en-ZA": {
+        "name": "English (South Africa) (1 234 567,89)",
+        "code": "en-ZA",
+        "format": "1 234 567,89"
+    },
+    "es-AR": {
+        "name": "Argentine Spanish(1.234.567,89)",
+        "code": "es-AR",
+        "format": "1.234.567,89"
+    },
+    "es-CL": {
+        "name": "Chilean Spanish(1.234.567,89)",
+        "code": "es-CL",
+        "format": "1.234.567,89"
+    },
+    "es-CO": {
+        "name": "Colombian Spanish(1.234.567,89)",
+        "code": "es-CO",
+        "format": "1.234.567,89"
+    },
+    "es-ES": {
+        "name": "Castilian Spanish (1.234.567,89)",
+        "code": "es-ES",
+        "format": "1.234.567,89"
+    },
+    "es-MX": {
+        "name": "Mexican Spanish(1,234,567.89)",
+        "code": "es-MX",
+        "format": "1,234,567.89"
+    },
+    "es-US": {
+        "name": "American Spanish(1,234,567.89)",
+        "code": "es-US",
+        "format": "1,234,567.89"
+    },
+    "fi-FI": {
+        "name": "Finnish (Finland) (1 234 567,89)",
+        "code": "fi-FI",
+        "format": "1 234 567,89"
+    },
+    "fr-BE": {
+        "name": "Belgian French(1 234 567,89)",
+        "code": "fr-BE",
+        "format": "1 234 567,89"
+    },
+    "fr-CA": {
+        "name": "Canadian French(1 234 567,89)",
+        "code": "fr-CA",
+        "format": "1 234 567,89"
+    },
+    "fr-CH": {
+        "name": "\"Swiss\" French(1 234 567,89)",
+        "code": "fr-CH",
+        "format": "1 234 567,89"
+    },
+    "fr-FR": {
+        "name": "Standard French (1 234 567,89)",
+        "code": "fr-FR",
+        "format": "1 234 567,89"
+    },
+    "he-IL": {
+        "name": "Hebrew (Israel) (1,234,567.89)",
+        "code": "he-IL",
+        "format": "1,234,567.89"
+    },
+    "hi-IN": {
+        "name": "Hindi (India) (12,34,567.89)",
+        "code": "hi-IN",
+        "format": "12,34,567.89"
+    },
+    "hu-HU": {
+        "name": "Hungarian (Hungary) (1 234 567,89)",
+        "code": "hu-HU",
+        "format": "1 234 567,89"
+    },
+    "id-ID": {
+        "name": "Indonesian (Indonesia) (1.234.567,89)",
+        "code": "id-ID",
+        "format": "1.234.567,89"
+    },
+    "it-CH": {
+        "name": "\"Swiss\" Italian(1’234’567.89)",
+        "code": "it-CH",
+        "format": "1’234’567.89"
+    },
+    "it-IT": {
+        "name": "Standard Italian(1.234.567,89)",
+        "code": "it-IT",
+        "format": "1.234.567,89"
+    },
+    "ja-JP": {
+        "name": "Japanese (Japan) (1,234,567.89)",
+        "code": "ja-JP",
+        "format": "1,234,567.89"
+    },
+    "ko-KR": {
+        "name": "Korean (Republic of Korea) (1,234,567.89)",
+        "code": "ko-KR",
+        "format": "1,234,567.89"
+    },
+    "nl-BE": {
+        "name": "Belgian Dutch(1.234.567,89)",
+        "code": "nl-BE",
+        "format": "1.234.567,89"
+    },
+    "nl-NL": {
+        "name": "Standard Dutch(1.234.567,89)",
+        "code": "nl-NL",
+        "format": "1.234.567,89"
+    },
+    "no-NO": {
+        "name": "Norwegian (Norway) (1 234 567,89)",
+        "code": "no-NO",
+        "format": "1 234 567,89"
+    },
+    "pl-PL": {
+        "name": "Polish (Poland) (1 234 567,89)",
+        "code": "pl-PL",
+        "format": "1 234 567,89"
+    },
+    "pt-BR": {
+        "name": "Brazilian Portuguese(1.234.567,89)",
+        "code": "pt-BR",
+        "format": "1.234.567,89"
+    },
+    "pt-PT": {
+        "name": "European Portuguese(1 234 567,89)",
+        "code": "pt-PT",
+        "format": "1 234 567,89"
+    },
+    "ro-RO": {
+        "name": "Romanian (Romania) (1.234.567,89)",
+        "code": "ro-RO",
+        "format": "1.234.567,89"
+    },
+    "ru-RU": {
+        "name": "Russian (Russian Federation) (1 234 567,89)",
+        "code": "ru-RU",
+        "format": "1 234 567,89"
+    },
+    "sk-SK": {
+        "name": "Slovak (Slovakia) (1 234 567,89)",
+        "code": "sk-SK",
+        "format": "1 234 567,89"
+    },
+    "sv-SE": {
+        "name": "Swedish (Sweden) (1 234 567,89)",
+        "code": "sv-SE",
+        "format": "1 234 567,89"
+    },
+    "ta-IN": {
+        "name": "Indian Tamil(12,34,567.89)",
+        "code": "ta-IN",
+        "format": "12,34,567.89"
+    },
+    "ta-LK": {
+        "name": "Sri Lankan Tamil(12,34,567.89)",
+        "code": "ta-LK",
+        "format": "12,34,567.89"
+    },
+    "th-TH": {
+        "name": "Thai (Thailand) (1,234,567.89)",
+        "code": "th-TH",
+        "format": "1,234,567.89"
+    },
+    "tr-TR": {
+        "name": "Turkish (Turkey) (1.234.567,89)",
+        "code": "tr-TR",
+        "format": "1.234.567,89"
+    },
+    "zh-CN": {
+        "name": "Mainland China, simplified (1,234,567.89)",
+        "code": "zh-CN",
+        "format": "1,234,567.89"
+    },
+    "zh-HK": {
+        "name": "Hong Kong, traditional (1,234,567.89)",
+        "code": "zh-HK",
+        "format": "1,234,567.89"
+    },
+    "zh-TW": {
+        "name": "Taiwan, traditional (1,234,567.89)",
+        "code": "zh-TW",
+        "format": "1,234,567.89"
+    }
+}

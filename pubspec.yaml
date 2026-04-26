@@ -1,6 +1,7 @@
 name: ssboss_wb_app
 description: SSBOSS mobile app (stable WB-like snapshot)
 publish_to: "none"
+version: 1.0.0+2
 
 environment:
   sdk: ">=3.3.0 <4.0.0"
@@ -14,14 +15,52 @@ dependencies:
   shared_preferences: ^2.5.3
   carousel_slider: ^5.0.0
   encrypt: ^5.0.3       # AES/CBC
+  path_provider: ^2.1.5
   flutter_dotenv: ^6.0.0 # для KEY/IV из .env
   http: ^1.2.2
+  dio_cookie_manager: ^3.3.0
+  cookie_jar: ^4.0.8
+  cached_network_image: ^3.4.1
+  video_player: ^2.10.0
+  chewie: ^1.13.0
+  shimmer: ^3.0.0
+  share_plus: ^10.1.2
+  url_launcher: ^6.3.1
+  font_awesome_flutter: ^10.7.0
+  firebase_core: ^2.27.0
+  firebase_messaging: ^14.7.10
+  flutter_local_notifications: ^17.1.1
+  flutter_widget_from_html: ^0.15.2
+  intl: ^0.19.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  flutter_native_splash: ^2.4.1
 
 flutter:
   uses-material-design: true
   assets:
     - assets/app_config.json
+    - assets/splash_screen.jpg
+
+flutter_native_splash:
+  # This package generates native code to customize Flutter's default white native splash screen
+  # with background color and splash image.
+  # Customize the parameters below, and run the following command:
+  # flutter pub run flutter_native_splash:create
+  # To restore Flutter's default white splash screen, run:
+  # flutter pub run flutter_native_splash:remove
+
+  color: "#FFFFFF"
+  #color_dark: "#000000"  # Optional, uncomment if you want a dark mode splash screen
+
+  image: assets/splash_screen.jpg
+  #image_dark: assets/splash_dark.png  # Optional, uncomment if you want a dark mode splash image
+
+  android: true
+  ios: true
+
+  #android_12: true  # Optional, uncomment if you want Android 12+ splash screen support
+  #android_12_image: assets/splash_android12.png  # Optional, Android 12+ splash image
+    

@@ -1,0 +1,21 @@
+# Пример файла key.properties
+# Скопируйте этот файл в key.properties и заполните реальными значениями
+# 
+# ВАЖНО: НЕ коммитьте key.properties в git! Он уже добавлен в .gitignore
+
+# Пароль для keystore
+storePassword=ваш_пароль_keystore
+
+# Пароль для ключа
+keyPassword=ваш_пароль_ключа
+
+# Алиас ключа (обычно "upload")
+keyAlias=upload
+
+# Путь к файлу keystore (можно использовать абсолютный или относительный путь)
+# Примеры:
+# storeFile=C:/Users/YourName/upload-keystore.jks
+# storeFile=../upload-keystore.jks
+# storeFile=~/upload-keystore.jks
+storeFile=путь/к/upload-keystore.jks
+

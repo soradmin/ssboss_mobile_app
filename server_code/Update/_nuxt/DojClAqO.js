@@ -1,0 +1,1 @@
+import{ao as u,s,c as n,ap as i,aq as r,n as c}from"./CUbiELFD.js";const d=u(f=>{const{authenticated:t,token:a}=s(n()),o=r(),e=i(o.public.auth_token_key);if(e!=null&&e.value)return t.value=!0,a.value=e.value,c("/")});export{d as default};

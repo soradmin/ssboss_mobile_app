@@ -1,0 +1,1 @@
+import{R as s}from"./CUbiELFD.js";const o=()=>({countryList:null,phoneList:null}),e={setCountryList(t){this.countryList=t},setPhoneList(t){this.phoneList=t}},i=s("resource",{state:o,actions:e});export{i as u};

@@ -1,0 +1,17 @@
+{
+  "migrations": [
+    "2024_04_22_175628_create_pos_order_table",
+    "2024_04_22_181040_add_pos_in_order_table",
+    "2024_05_01_063045_update_ordered_products_for_pos_table",
+    "2024_05_04_051234_create_pos_setting_table",
+    "2024_05_04_122129_create_pos_setting_lang_table"
+  ],
+  "seeders": [
+    "AddPosRoleSeeder",
+    "PosSettingSeeder",
+    "PosSettingLangSeeder"
+  ],
+    "delete": [
+    "RemovePosPermissionSeeder"
+    ]
+}

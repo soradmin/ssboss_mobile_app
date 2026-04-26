@@ -1,0 +1,1 @@
+import{au as u,s,B as n,L as i,C as r,M as c}from"./tMqvOaGw.js";const d=u(f=>{const{authenticated:t,token:o}=s(n()),a=r(),e=i(a.public.auth_token_key);if(e!=null&&e.value)return t.value=!0,o.value=e==null?void 0:e.value,c("/")});export{d as default};

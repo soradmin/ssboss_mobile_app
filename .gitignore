@@ -1,3 +1,8 @@
+# Environment and secrets (NEVER commit .env — contains API keys, Resend key, etc.)
+.env
+.env.*
+!.env.example
+
 # Miscellaneous
 *.class
 *.log
@@ -43,3 +48,15 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Keystore files - НЕ коммитьте файлы с паролями!
+/android/key.properties
+*.jks
+*.keystore
+upload-keystore.jks
+
+# Backend secrets (never push to GitHub)
+server_code/service-account.json
+server_code/config/firebase-adminsdk.json
+server_code/Update/service-account.json
+server_code/db/ssboss_db.sql

@@ -1,0 +1,1 @@
+const i={data(){return{itemList:[],cbList:[]}},methods:{checkAll(t){t.target.checked?this.cbList=this.itemList.map(e=>e.id):this.cbList=[]},deleteBulk(){var t;(t=this.cbList)!=null&&t.length&&this.$refs.listPage.deleteItem(this.cbList.join(","))}}};export{i as b};

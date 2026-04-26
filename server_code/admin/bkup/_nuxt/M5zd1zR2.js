@@ -1,0 +1,1 @@
+import{au as n,s as l,B as r,L as c,C as f,a3 as d,M as g}from"./B2CLvnrr.js";const m=n(a=>{const{authenticated:o,token:s}=l(r()),u=f(),e=c(u.public.auth_token_key),t=d();if(!(e!=null&&e.value)){if(t!=null&&t.isClient){const i=a.fullPath;localStorage.setItem("redirection_url",i)}return o.value=!1,s.value=!1,g("/login")}});export{m as default};

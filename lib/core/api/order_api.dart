@@ -10,12 +10,21 @@ class OrderApi {
     required int orderMethod,          // число, как в веб-пэйлоаде (у тебя мы видели 2)
     String voucher = '',
     String timeZone = 'Asia/Tashkent',
+    String? userName,
+    String? userEmail,
+    int? userId,
+    String? notes,
   }) {
     final payload = {
       'user_token': userToken,
       'order_method': orderMethod,
       'voucher': voucher,
       'time_zone': timeZone,
+      // Добавляем информацию о пользователе если передана
+      if (userName != null) 'user_name': userName,
+      if (userEmail != null) 'user_email': userEmail,
+      if (userId != null) 'user_id': userId,
+      if (notes != null) 'notes': notes,
     };
 
     final encrypted = encryptMap(payload);

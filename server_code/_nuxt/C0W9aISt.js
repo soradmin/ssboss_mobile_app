@@ -1,0 +1,1 @@
+import{R as r}from"./5Uvbhf_8.js";const t=()=>({orderedList:[],ordered:{}}),d={updateOrderData(e){this.ordered={...this.ordered,...e}},setOrderList(e){this.orderedList=e}},s=r("order",{state:t,actions:d});export{s as u};

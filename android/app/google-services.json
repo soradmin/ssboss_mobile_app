@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "566190321964",
+    "project_id": "ssboss-940a1",
+    "storage_bucket": "ssboss-940a1.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:566190321964:android:657c7b02d2d341bbffbc89",
+        "android_client_info": {
+          "package_name": "com.ssboss.ssbossmp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDSqG2daED0p4TkW81gleWjHmaIDtyW83w"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

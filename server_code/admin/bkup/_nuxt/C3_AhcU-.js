@@ -1,0 +1,1 @@
+import{A as n,s as a,O as o}from"./B2CLvnrr.js";function g(){const t=/^(([^<>()\]\\.,;:\s@"]+(\.[^<>()\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,24}))$/,e=n(),{media:r}=a(e),{t:l}=o();return{isValidEmail:s=>t.test(s),isValidLength:s=>s&&s.length>=6||!1}}export{g as u};
