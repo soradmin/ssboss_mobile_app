@@ -1,18 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
-import 'package:cached_network_image/cached_network_image.dart';
-import 'package:shimmer/shimmer.dart';
 
 import '../../../core/widgets/bottom_navigation_bar.dart';
 import '../repo/catalog_api.dart';
 import '../models/product.dart';
 import '../../../core/result.dart';
-import '../../cart/controllers/cart_controller.dart';
-import '../../cart/models/cart_item.dart';
-import '../../cart/repo/cart_api.dart';
-import '../../cart/widgets/cart_badge.dart';
-import '../../favorites/repo/favorites_api.dart';
+import '../widgets/product_grid_card.dart';
 
 class ProductsScreen extends ConsumerStatefulWidget {
   final String? category;
@@ -135,7 +128,25 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
 
   Widget _buildBody() {
     if (_loading && _products.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
+      final screenWidth = MediaQuery.of(context).size.width;
+      var crossAxisCount = 2;
+      if (screenWidth > 600) {
+        crossAxisCount = 3;
+      }
+      return Padding(
+        padding: const EdgeInsets.all(12),
+        child: GridView.builder(
+          physics: const AlwaysScrollableScrollPhysics(),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: crossAxisCount,
+            childAspectRatio: ProductGridCard.gridChildAspectRatio,
+            crossAxisSpacing: 12,
+            mainAxisSpacing: 12,
+          ),
+          itemCount: crossAxisCount * 4,
+          itemBuilder: (context, index) => const ProductGridCardSkeleton(),
+        ),
+      );
     }
 
     if (_error != null && _products.isEmpty) {
@@ -205,14 +216,14 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
                 crossAxisCount: 2,
                 mainAxisSpacing: 12,
                 crossAxisSpacing: 12,
-                childAspectRatio: 0.65,
+                childAspectRatio: ProductGridCard.gridChildAspectRatio,
               ),
               itemCount: _products.length + (_loadingMore ? 2 : 0),
               itemBuilder: (context, index) {
                 if (index >= _products.length) {
-                  return const _LoadingCard();
+                  return const ProductGridCardSkeleton();
                 }
-                return _ProductCard(product: _products[index]);
+                return ProductGridCard(product: _products[index]);
               },
             ),
           ),
@@ -257,471 +268,3 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
   }
 }
 
-class _ProductCard extends ConsumerWidget {
-  final Product product;
-
-  const _ProductCard({required this.product});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    // Количество этого товара в локальной корзине (для бейджа)
-    final items = ref.watch(cartProvider);
-    int qtyInCart = 0;
-    for (final it in items) {
-      if (it.product.id == product.id) {
-        qtyInCart = it.qty;
-        break;
-      }
-    }
-
-    const purple = Color(0xFF7B3FE4);
-
-    return InkWell(
-      onTap: () => context.push('/product/${product.id}', extra: product),
-      borderRadius: BorderRadius.circular(12),
-      child: Card(
-        elevation: 2,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Изображение товара с плавающей кнопкой корзины
-            Expanded(
-              flex: 3,
-              child: Stack(
-                children: [
-                  ClipRRect(
-                    borderRadius: const BorderRadius.vertical(
-                      top: Radius.circular(12),
-                    ),
-                    child: product.image.isEmpty
-                        ? Container(
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [
-                                  const Color(0xFF6A1B9A).withOpacity(0.1),
-                                  const Color(0xFF9C27B0).withOpacity(0.1),
-                                ],
-                              ),
-                            ),
-                            child: Center(
-                              child: Icon(
-                                Icons.image_outlined,
-                                color: purple.withOpacity(0.5),
-                                size: 48,
-                              ),
-                            ),
-                          )
-                        : CachedNetworkImage(
-                            imageUrl: product.image,
-                            fit: BoxFit.cover,
-                            width: double.infinity,
-                            height: double.infinity,
-                            placeholder: (context, url) => Container(
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  colors: [
-                                    const Color(0xFF6A1B9A).withOpacity(0.1),
-                                    const Color(0xFF9C27B0).withOpacity(0.1),
-                                  ],
-                                ),
-                              ),
-                              child: Center(
-                                child: Icon(
-                                  Icons.image_outlined,
-                                  color: purple.withOpacity(0.5),
-                                  size: 48,
-                                ),
-                              ),
-                            ),
-                            errorWidget: (context, url, error) => Container(
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  colors: [
-                                    const Color(0xFF6A1B9A).withOpacity(0.1),
-                                    const Color(0xFF9C27B0).withOpacity(0.1),
-                                  ],
-                                ),
-                              ),
-                              child: Center(
-                                child: Icon(
-                                  Icons.image_outlined,
-                                  color: purple.withOpacity(0.5),
-                                  size: 48,
-                                ),
-                              ),
-                            ),
-                          ),
-                  ),
-
-                  // Бейдж товара
-                  if (product.badge != null && product.badge!.isNotEmpty)
-                    Positioned(
-                      top: 6,
-                      left: 6,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 3,
-                        ),
-                        decoration: BoxDecoration(
-                          color: purple,
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          product.badge!,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 9,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ),
-
-                  // Кнопка избранного в правом верхнем углу
-                  Positioned(
-                    top: 8,
-                    right: 8,
-                    child: _FavoriteButton(product: product),
-                  ),
-
-                  // Плавающая круглая кнопка корзины
-                  Positioned(
-                    right: 8,
-                    bottom: 8,
-                    child: Stack(
-                      clipBehavior: Clip.none,
-                      children: [
-                        GestureDetector(
-                          onTap: () async {
-                            await ref.read(cartProvider.notifier).addToCartWithSync(product, 1);
-                            ScaffoldMessenger.of(context).hideCurrentSnackBar();
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Товар добавлен в корзину'),
-                                duration: Duration(milliseconds: 900),
-                              ),
-                            );
-                          },
-                          child: Container(
-                            width: 48,
-                            height: 48,
-                            decoration: BoxDecoration(
-                              color: purple,
-                              shape: BoxShape.circle,
-                              boxShadow: const [
-                                BoxShadow(
-                                  color: Color(0x33000000),
-                                  blurRadius: 8,
-                                  offset: Offset(0, 4),
-                                ),
-                              ],
-                            ),
-                            child: const Icon(Icons.shopping_cart_outlined, color: Colors.white, size: 22),
-                          ),
-                        ),
-                        if (qtyInCart > 0)
-                          Positioned(
-                            top: -4,
-                            right: -4,
-                            child: Container(
-                              width: 20,
-                              height: 20,
-                              alignment: Alignment.center,
-                              decoration: BoxDecoration(
-                                color: Colors.redAccent,
-                                borderRadius: BorderRadius.circular(10),
-                                border: Border.all(color: Colors.white, width: 2),
-                              ),
-                              child: Text(
-                                qtyInCart > 9 ? '9+' : '$qtyInCart',
-                                style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // Цена (сразу после изображения)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              child: Row(
-                children: [
-                  Text(
-                    '${product.price.toStringAsFixed(0)} с.',
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.red,
-                    ),
-                  ),
-                  if (product.oldPrice != null &&
-                      product.oldPrice! > product.price) ...[
-                    const SizedBox(width: 6),
-                    Text(
-                      '${product.oldPrice!.toStringAsFixed(0)} с.',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey[600],
-                        decoration: TextDecoration.lineThrough,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-
-            // Информация о товаре
-            Flexible(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(8, 2, 8, 2),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      product.name,
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w500,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    if (product.rating > 0)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 2),
-                        child: Row(
-                          children: [
-                            const Icon(
-                              Icons.star,
-                              size: 11,
-                              color: Colors.amber,
-                            ),
-                            const SizedBox(width: 2),
-                            Text(
-                              product.rating.toStringAsFixed(1),
-                              style: const TextStyle(fontSize: 9),
-                            ),
-                            if (product.reviewCount > 0) ...[
-                              const SizedBox(width: 4),
-                              Text(
-                                '(${product.reviewCount})',
-                                style: TextStyle(
-                                  fontSize: 9,
-                                  color: Colors.grey[600],
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // Метод для правильного склонения слова "оценка"
-  String _getReviewCountText(int count) {
-    if (count % 10 == 1 && count % 100 != 11) {
-      return 'оценка';
-    } else if (count % 10 >= 2 && count % 10 <= 4 && (count % 100 < 10 || count % 100 >= 20)) {
-      return 'оценки';
-    } else {
-      return 'оценок';
-    }
-  }
-}
-
-class _LoadingCard extends StatelessWidget {
-  const _LoadingCard();
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Shimmer.fromColors(
-        baseColor: Colors.grey[300]!,
-        highlightColor: Colors.grey[100]!,
-        child: const Padding(
-          padding: EdgeInsets.all(10),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: ColoredBox(color: Colors.white),
-              ),
-              SizedBox(height: 8),
-              ColoredBox(color: Colors.white, child: SizedBox(height: 20, width: double.infinity)),
-              SizedBox(height: 4),
-              ColoredBox(color: Colors.white, child: SizedBox(height: 16, width: 80)),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// Виджет кнопки избранного
-class _FavoriteButton extends ConsumerStatefulWidget {
-  final Product product;
-  
-  const _FavoriteButton({required this.product});
-  
-  @override
-  ConsumerState<_FavoriteButton> createState() => _FavoriteButtonState();
-}
-
-class _FavoriteButtonState extends ConsumerState<_FavoriteButton> {
-  bool _isFavorite = false;
-  bool _isLoading = false;
-  
-  @override
-  void initState() {
-    super.initState();
-    // Можно загрузить начальное состояние избранного при необходимости
-    // Для простоты используем локальное состояние
-  }
-  
-  Future<void> _toggleFavorite() async {
-    if (_isLoading) return;
-    
-    setState(() {
-      _isLoading = true;
-    });
-    
-    try {
-      final favoritesApi = ref.read(favoritesApiProvider);
-      
-      // Переключаем статус избранного
-      if (_isFavorite) {
-        final result = await favoritesApi.removeFromFavorites(widget.product.id);
-        result.when(
-          ok: (_) {
-            setState(() {
-              _isFavorite = false;
-              _isLoading = false;
-            });
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('${widget.product.name} удален из избранного'),
-                  duration: const Duration(seconds: 1),
-                ),
-              );
-            }
-          },
-          err: (error) {
-            setState(() {
-              _isLoading = false;
-            });
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Ошибка: $error'),
-                  backgroundColor: Colors.red,
-                  duration: const Duration(seconds: 2),
-                ),
-              );
-            }
-          },
-        );
-      } else {
-        final result = await favoritesApi.addToFavorites(widget.product.id);
-        result.when(
-          ok: (_) {
-            setState(() {
-              _isFavorite = true;
-              _isLoading = false;
-            });
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('${widget.product.name} добавлен в избранное'),
-                  duration: const Duration(seconds: 1),
-                ),
-              );
-            }
-          },
-          err: (error) {
-            setState(() {
-              _isLoading = false;
-            });
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Ошибка: $error'),
-                  backgroundColor: Colors.red,
-                  duration: const Duration(seconds: 2),
-                ),
-              );
-            }
-          },
-        );
-      }
-    } catch (e) {
-      setState(() {
-        _isLoading = false;
-      });
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Ошибка: $e'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 2),
-          ),
-        );
-      }
-    }
-  }
-  
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: _toggleFavorite,
-        borderRadius: BorderRadius.circular(20),
-        child: Container(
-          width: 36,
-          height: 36,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            shape: BoxShape.circle,
-            border: Border.all(
-              color: Colors.grey[300]!,
-              width: 1,
-            ),
-          ),
-          child: _isLoading
-              ? const Padding(
-                  padding: EdgeInsets.all(8.0),
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                  ),
-                )
-              : Icon(
-                  _isFavorite ? Icons.favorite : Icons.favorite_border,
-                  color: _isFavorite ? Colors.red : Colors.black87,
-                  size: 20,
-                ),
-        ),
-      ),
-    );
-  }
-}

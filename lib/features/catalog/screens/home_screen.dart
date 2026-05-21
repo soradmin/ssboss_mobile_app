@@ -5,7 +5,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:shimmer/shimmer.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
@@ -21,6 +20,7 @@ import '../models/banner.dart' as banner_model;
 import '../models/brand.dart';
 import '../models/home_page_data.dart';
 import '../models/flash_sale.dart';
+import '../widgets/product_grid_card.dart';
 import '../../../core/result.dart';         // Ok/Err
 import '../../cart/repo/cart_api.dart';    // серверная корзина
 import '../../../core/config.dart';        // AppConfig
@@ -501,6 +501,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     return 'Пользователь';
   }
 
+  /// iPhone 15 и похожие экраны (~852pt) — компактнее отступы между блоками.
+  bool _isCompactPhone(BuildContext context) {
+    return MediaQuery.of(context).size.height < 900;
+  }
+
+  double _sectionBottomGap(BuildContext context) =>
+      _isCompactPhone(context) ? 8.0 : 16.0;
+
+  double _productsLoaderPadding(BuildContext context) =>
+      _isCompactPhone(context) ? 12.0 : 32.0;
+
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(authProvider);
@@ -747,7 +758,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     return GestureDetector(
       onTap: () async {
         // Открываем WhatsApp с номером телефона
-        final phoneNumber = '+992930900412'; // Убираем пробелы для WhatsApp
+        const phoneNumber = '992990990955';
         final whatsappUrl = 'https://wa.me/$phoneNumber';
         
         try {
@@ -940,22 +951,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     );
   }
 
-  // Карусель баннеров меньшего размера (для вставки между секциями товаров)
+  // Карусель баннеров 1000×500 (между секциями товаров, как на сайте)
   Widget _buildBannersCarousel(List<banner_model.Banner> banners) {
     if (banners.isEmpty) return const SizedBox.shrink();
     
-    // Получаем размеры экрана для адаптивной вырезки
     final screenWidth = MediaQuery.of(context).size.width;
-    final padding = 32.0; // Отступы слева и справа (16px * 2)
-    final bannerWidth = screenWidth - padding; // Ширина баннера (как у поисковой строки)
-    final bannerHeight = 150.0; // Фиксированная высота баннера
+    const padding = 32.0; // 16px слева и справа
+    final bannerWidth = screenWidth - padding;
+    // Пропорции оригинала 1000×500 — без обрезки, как на вебе
+    const mediumBannerAspectRatio = 1000 / 500;
+    final bannerHeight = bannerWidth / mediumBannerAspectRatio;
     
-    // Рассчитываем размеры для кэширования на основе реальной ширины экрана
-    // Оригинальное изображение: 100x500px (портретное)
-    // Отображаем: bannerWidth x 150px (альбомное)
-    // Для адаптивной вырезки используем BoxFit.cover, который обрежет изображение
-    final cacheWidth = (bannerWidth * 2).round(); // Увеличиваем для качества
-    final cacheHeight = (bannerHeight * 2).round(); // Увеличиваем для качества
+    final cacheWidth = (bannerWidth * 2).round();
+    final cacheHeight = (bannerHeight * 2).round();
     
     return Container(
       margin: EdgeInsets.zero, // Убираем отступ снизу баннера
@@ -991,18 +999,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 borderRadius: BorderRadius.circular(16),
                 child: CachedNetworkImage(
                   imageUrl: AppConfig.imageUrl(banner.image),
-                  // BoxFit.cover обрезает изображение для заполнения контейнера
-                  // При этом сохраняется соотношение сторон и изображение адаптируется
-                  fit: BoxFit.cover,
+                  fit: BoxFit.contain,
                   width: bannerWidth,
                   height: bannerHeight,
-                  // Адаптивные размеры кэша для разных устройств
                   memCacheHeight: cacheHeight,
                   memCacheWidth: cacheWidth,
                   maxHeightDiskCache: cacheHeight,
                   maxWidthDiskCache: cacheWidth,
-                  // Дополнительные параметры для оптимизации загрузки
-                  alignment: Alignment.center, // Центрируем вырезку
+                  alignment: Alignment.center,
                   placeholder: (context, url) => Container(
                     width: bannerWidth,
                     height: bannerHeight,
@@ -1045,7 +1049,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           );
         },
         options: CarouselOptions(
-          height: bannerHeight, // Адаптивная высота
+          height: bannerHeight,
           autoPlay: true,
           autoPlayInterval: const Duration(seconds: 4),
           autoPlayAnimationDuration: const Duration(milliseconds: 1000),
@@ -1428,11 +1432,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   // Категории
   Widget _buildCategoriesSection() {
     // Используем бренды вместо категорий
+    final compact = _isCompactPhone(context);
+    final brandsHeight = compact ? 92.0 : 100.0;
+
     if (_brands.isEmpty) {
       // Если бренды не загружены, показываем placeholder
       return Container(
-        height: 100,
-        margin: const EdgeInsets.only(bottom: 20),
+        height: brandsHeight,
+        margin: EdgeInsets.only(bottom: _sectionBottomGap(context)),
         child: const Center(
           child: CircularProgressIndicator(
             color: Color(0xFF9C27B0),
@@ -1442,8 +1449,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     }
 
     return Container(
-      height: 100,
-      margin: const EdgeInsets.only(bottom: 20),
+      height: brandsHeight,
+      margin: EdgeInsets.only(bottom: _sectionBottomGap(context)),
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
         itemCount: _brands.length,
@@ -1464,7 +1471,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                   // Логотип бренда
                   Container(
                     width: 50,
-                    height: 50,
+                    height: compact ? 46 : 50,
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(12),
@@ -1941,9 +1948,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   Widget _buildTabsSection() {
     // Изменены названия: 'Популярное' → 'Новинки', 'Новинки' → 'Рекомендуемые'
     final tabs = ['Новинки', 'Скидки', 'Рекомендуемые', 'Тренды'];
+    final compact = _isCompactPhone(context);
     
     return Container(
-      margin: const EdgeInsets.only(bottom: 20),
+      margin: EdgeInsets.only(bottom: compact ? 4 : _sectionBottomGap(context)),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: Row(
@@ -1957,7 +1965,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 },
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: compact ? 8 : 10,
+                  ),
                   decoration: BoxDecoration(
                     color: isSelected ? const Color(0xFF9C27B0) : Colors.white,
                     borderRadius: BorderRadius.circular(20),
@@ -2045,12 +2056,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
   // Секция товаров
   Widget _buildProductsSection() {
+    final loaderPadding = _productsLoaderPadding(context);
+
     // Показываем индикатор загрузки при переключении вкладок
     if (_tabLoading) {
-      return const Center(
+      return Center(
         child: Padding(
-          padding: EdgeInsets.all(50),
-          child: CircularProgressIndicator(
+          padding: EdgeInsets.symmetric(vertical: loaderPadding),
+          child: const CircularProgressIndicator(
             color: Color(0xFF9C27B0),
           ),
         ),
@@ -2066,10 +2079,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       case 'Скидки':
         // Для Flash Sale показываем блоки с акциями
         if (_flashSales.isEmpty) {
-          return const Center(
+          return Center(
             child: Padding(
-              padding: EdgeInsets.all(50),
-              child: Text(
+              padding: EdgeInsets.symmetric(vertical: loaderPadding),
+              child: const Text(
                 'Нет активных скидок',
                 style: TextStyle(
                   fontSize: 16,
@@ -2091,22 +2104,34 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         productsToShow = _newProducts;
     }
 
+    final screenWidth = MediaQuery.of(context).size.width;
+
+    int crossAxisCount = 2;
+    if (screenWidth > 600) {
+      crossAxisCount = 3;
+    }
+
     if (_loading && productsToShow.isEmpty) {
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.all(50),
-          child: CircularProgressIndicator(
-            color: Color(0xFF9C27B0),
-          ),
+      final skeletonCount = crossAxisCount * 4;
+      return GridView.builder(
+        physics: const NeverScrollableScrollPhysics(),
+        shrinkWrap: true,
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: crossAxisCount,
+          childAspectRatio: ProductGridCard.gridChildAspectRatio,
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
         ),
+        itemCount: skeletonCount,
+        itemBuilder: (context, index) => const ProductGridCardSkeleton(),
       );
     }
 
     if (productsToShow.isEmpty) {
-      return const Center(
+      return Center(
         child: Padding(
-          padding: EdgeInsets.all(50),
-          child: Text(
+          padding: EdgeInsets.symmetric(vertical: loaderPadding),
+          child: const Text(
             'Товары не найдены',
             style: TextStyle(
               fontSize: 16,
@@ -2116,26 +2141,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         ),
       );
     }
-
-    // Получаем размеры экрана
-    final screenWidth = MediaQuery.of(context).size.width;
-    final screenHeight = MediaQuery.of(context).size.height;
-    final bottomPadding = MediaQuery.of(context).padding.bottom;
-    
-    // Рассчитываем количество колонок в зависимости от ширины экрана
-    int crossAxisCount = 2;
-    if (screenWidth > 600) {
-      crossAxisCount = 3;
-    } else if (screenWidth > 400) {
-      crossAxisCount = 2;
-    } else {
-      crossAxisCount = 2;
-    }
-
-    // Рассчитываем высоту карточки в зависимости от высоты экрана
-    double cardHeight = screenHeight * 0.2; // 20% от высоты экрана (уменьшили)
-    if (cardHeight < 180) cardHeight = 180; // Минимальная высота (уменьшили)
-    if (cardHeight > 250) cardHeight = 250; // Максимальная высота (уменьшили)
 
     // Получаем баннеры размером 1000x500 (средние баннеры) для вставки между сетками
     final mediumBanners = _homePageData?.mediumBanners ?? [];
@@ -2167,14 +2172,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             shrinkWrap: true,
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: crossAxisCount,
-              childAspectRatio: 0.65,
-              crossAxisSpacing: 6,
-              mainAxisSpacing: 6,
+              childAspectRatio: ProductGridCard.gridChildAspectRatio,
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
             ),
             itemCount: productsBeforeSmallBanners.length,
             itemBuilder: (context, index) {
               final product = productsBeforeSmallBanners[index];
-              return _buildAdaptiveProductCard(product, cardHeight);
+              return ProductGridCard(
+                product: product,
+                onAddToCart: _showAttributeSelectionBottomSheet,
+              );
             },
           ),
         
@@ -2192,14 +2200,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             shrinkWrap: true,
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: crossAxisCount,
-              childAspectRatio: 0.65,
-              crossAxisSpacing: 6,
-              mainAxisSpacing: 6,
+              childAspectRatio: ProductGridCard.gridChildAspectRatio,
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
             ),
             itemCount: productsBeforeLargeBanner.length,
             itemBuilder: (context, index) {
               final product = productsBeforeLargeBanner[index];
-              return _buildAdaptiveProductCard(product, cardHeight);
+              return ProductGridCard(
+                product: product,
+                onAddToCart: _showAttributeSelectionBottomSheet,
+              );
             },
           ),
         
@@ -2217,292 +2228,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             shrinkWrap: true,
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: crossAxisCount,
-              childAspectRatio: 0.65,
-              crossAxisSpacing: 6,
-              mainAxisSpacing: 6,
+              childAspectRatio: ProductGridCard.gridChildAspectRatio,
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
             ),
             itemCount: productsAfterLargeBanner.length,
             itemBuilder: (context, index) {
               final product = productsAfterLargeBanner[index];
-              return _buildAdaptiveProductCard(product, cardHeight);
+              return ProductGridCard(
+                product: product,
+                onAddToCart: _showAttributeSelectionBottomSheet,
+              );
             },
           ),
       ],
-    );
-  }
-
-  // Адаптивная карточка товара
-  Widget _buildAdaptiveProductCard(Product product, double cardHeight) {
-    // Количество этого товара в локальной корзине (для бейджа)
-    final items = ref.watch(cartProvider);
-    int qtyInCart = 0;
-    for (final it in items) {
-      if (it.product.id == product.id) {
-        qtyInCart = it.qty;
-        break;
-      }
-    }
-
-    const purple = Color(0xFF7B3FE4);
-
-    return RepaintBoundary(
-      child: InkWell(
-        onTap: () => context.push('/product/${product.id}', extra: product),
-        borderRadius: BorderRadius.circular(12),
-        child: Card(
-          elevation: 2,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: SizedBox(
-            height: cardHeight,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Изображение товара с плавающей кнопкой корзины
-                Expanded(
-                  flex: 3,
-                  child: Stack(
-                    children: [
-                      ClipRRect(
-                        borderRadius: const BorderRadius.vertical(
-                          top: Radius.circular(12),
-                        ),
-                        child: product.image.isEmpty
-                            ? Container(
-                                decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    colors: [
-                                      const Color(0xFF6A1B9A).withOpacity(0.1),
-                                      const Color(0xFF9C27B0).withOpacity(0.1),
-                                    ],
-                                  ),
-                                ),
-                                child: Center(
-                                  child: Icon(
-                                    Icons.image_outlined,
-                                    color: purple.withOpacity(0.5),
-                                    size: 48,
-                                  ),
-                                ),
-                              )
-                            : CachedNetworkImage(
-                              imageUrl: AppConfig.imageUrl(product.image),
-                              fit: BoxFit.cover,
-                              width: double.infinity,
-                              height: double.infinity,
-                              memCacheHeight: 220,
-                              memCacheWidth: 220,
-                              maxHeightDiskCache: 220,
-                              maxWidthDiskCache: 220,
-                              placeholder: (context, url) => Container(
-                                decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    colors: [
-                                      const Color(0xFF6A1B9A).withOpacity(0.1),
-                                      const Color(0xFF9C27B0).withOpacity(0.1),
-                                    ],
-                                  ),
-                                ),
-                                child: Center(
-                                  child: Icon(
-                                    Icons.image_outlined,
-                                    color: purple.withOpacity(0.5),
-                                    size: 48,
-                                  ),
-                                ),
-                              ),
-                              errorWidget: (context, url, error) => Container(
-                                decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    colors: [
-                                      const Color(0xFF6A1B9A).withOpacity(0.1),
-                                      const Color(0xFF9C27B0).withOpacity(0.1),
-                                    ],
-                                  ),
-                                ),
-                                child: Center(
-                                  child: Icon(
-                                    Icons.image_outlined,
-                                    color: purple.withOpacity(0.5),
-                                    size: 48,
-                                  ),
-                                ),
-                              ),
-                            ),
-                      ),
-
-                      // Бейдж товара
-                      if (product.badge != null && product.badge!.isNotEmpty)
-                        Positioned(
-                          top: 6,
-                          left: 6,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 3,
-                            ),
-                            decoration: BoxDecoration(
-                              color: purple,
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text(
-                              product.badge!,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 9,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ),
-
-                    // Кнопка избранного в правом верхнем углу
-                    Positioned(
-                      top: 8,
-                      right: 8,
-                      child: _FavoriteButton(product: product),
-                    ),
-
-                    // Плавающая круглая кнопка корзины
-                    Positioned(
-                      right: 8,
-                      bottom: 8,
-                      child: Stack(
-                        clipBehavior: Clip.none,
-                        children: [
-                          GestureDetector(
-                            onTap: () async {
-                              // Всегда проверяем наличие атрибутов через загрузку деталей товара
-                              await _showAttributeSelectionBottomSheet(context, ref, product);
-                            },
-                            child: Container(
-                              width: 48,
-                              height: 48,
-                              decoration: BoxDecoration(
-                                color: purple,
-                                shape: BoxShape.circle,
-                                boxShadow: const [
-                                  BoxShadow(
-                                    color: Color(0x33000000),
-                                    blurRadius: 8,
-                                    offset: Offset(0, 4),
-                                  ),
-                                ],
-                              ),
-                              child: const Icon(Icons.shopping_cart_outlined, color: Colors.white, size: 22),
-                            ),
-                          ),
-                          if (qtyInCart > 0)
-                            Positioned(
-                              top: -4,
-                              right: -4,
-                              child: Container(
-                                width: 20,
-                                height: 20,
-                                alignment: Alignment.center,
-                                decoration: BoxDecoration(
-                                  color: Colors.redAccent,
-                                  borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(color: Colors.white, width: 2),
-                                ),
-                                child: Text(
-                                  qtyInCart > 9 ? '9+' : '$qtyInCart',
-                                  style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-                // Цена (сразу после изображения)
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  child: Row(
-                    children: [
-                      Text(
-                        '${product.price.toStringAsFixed(0)} с.',
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.red,
-                        ),
-                      ),
-                      if (product.oldPrice != null &&
-                          product.oldPrice! > product.price) ...[
-                        const SizedBox(width: 6),
-                        Text(
-                          '${product.oldPrice!.toStringAsFixed(0)} с.',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey[600],
-                            decoration: TextDecoration.lineThrough,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-
-                // Информация о товаре
-                Flexible(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(8, 2, 8, 2),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          product.name,
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w500,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        if (product.rating > 0)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 2),
-                            child: Row(
-                              children: [
-                                const Icon(
-                                  Icons.star,
-                                  size: 11,
-                                  color: Colors.amber,
-                                ),
-                                const SizedBox(width: 2),
-                                Text(
-                                  product.rating.toStringAsFixed(1),
-                                  style: const TextStyle(fontSize: 9),
-                                ),
-                                if (product.reviewCount > 0) ...[
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    '(${product.reviewCount})',
-                                    style: TextStyle(
-                                      fontSize: 9,
-                                      color: Colors.grey[600],
-                                    ),
-                                  ),
-                                ],
-                              ],
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
     );
   }
 

@@ -75,8 +75,9 @@ class Product {
     final int id = (j['id'] ?? 0) as int;
     final String name = (j['name'] ?? j['title'] ?? '').toString();
     final String image = (j['image'] ?? j['thumbnail'] ?? j['thumb'] ?? '').toString();
-    final double price = _toDouble(j['price'] ?? j['offered'] ?? j['selling'] ?? 0);
-    final double? oldPrice = j['selling'] != null ? _toDouble(j['selling']) : null;
+    final prices = resolveProductPriceFields(j);
+    final double price = prices.price;
+    final double? oldPrice = prices.oldPrice;
     final double rating = _toDouble(j['rating'] ?? 0);
     final int reviewCount = (j['review_count'] ?? j['reviews_count'] ?? 0) as int;
     final String? badge = j['badge']?.toString();
@@ -256,3 +257,33 @@ class Product {
 }
 
 double _toDouble(dynamic v) => v is num ? v.toDouble() : double.tryParse('$v') ?? 0.0;
+
+double? _toDoubleOrNull(dynamic v) {
+  if (v == null) return null;
+  if (v is num) return v.toDouble();
+  return double.tryParse('$v');
+}
+
+/// selling — Продажа(SM), offered — Предложенный(SM) (скидка).
+/// offered == 0 означает отсутствие скидки — показываем только selling.
+({double price, double? oldPrice}) resolveProductPriceFields(
+  Map<String, dynamic> j,
+) {
+  final selling = _toDoubleOrNull(j['selling']);
+  final offered = _toDoubleOrNull(j['offered']);
+  final explicit = _toDoubleOrNull(j['price']);
+
+  if (offered != null && offered > 0) {
+    return (
+      price: offered,
+      oldPrice: (selling != null && selling > 0 && selling != offered)
+          ? selling
+          : null,
+    );
+  }
+
+  return (
+    price: selling ?? explicit ?? 0.0,
+    oldPrice: null,
+  );
+}

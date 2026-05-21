@@ -1,9 +1,9 @@
 import 'dart:io';
 import 'dart:convert';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import '../../../firebase_options.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/api_client.dart';
@@ -23,6 +23,7 @@ class NotificationService {
   bool _isInitialized = false;
   String? _fcmToken;
   static const String _notificationsKey = 'recent_notifications';
+  static const String _pendingFcmTokenKey = 'pending_fcm_token';
   static const int _maxNotifications = 2; // Сохраняем последние 2 уведомления
 
   /// Инициализация сервиса уведомлений
@@ -169,59 +170,117 @@ class NotificationService {
     }
   }
 
-  /// Отправка FCM токена на сервер
+  static const int _fcmRegisterMaxAttempts = 4;
+  static const Duration _fcmRegisterConnectTimeout = Duration(seconds: 45);
+  static const Duration _fcmRegisterReceiveTimeout = Duration(seconds: 45);
+
+  /// Отправка FCM токена на сервер (дольше таймаут + повторы — см. log.txt: таймауты 15 с).
   Future<void> _sendTokenToServer(String token) async {
     try {
       final activeToken = AppConfig.getActiveBearerToken();
       if (activeToken.isEmpty) {
-        print('[NOTIFICATIONS] ⚠️ Пользователь не авторизован, токен не отправлен');
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString(_pendingFcmTokenKey, token);
+        print(
+          '[NOTIFICATIONS] ⚠️ Не авторизован — FCM токен сохранён, отправим после входа',
+        );
         return;
       }
 
-      final response = await dio.post(
-        '/user/fcm-token',
-        data: {
-          'fcm_token': token,
-          'device_type': Platform.isAndroid ? 'android' : 'ios',
-        },
-        options: Options(
-          headers: {
-            'Authorization': 'Bearer $activeToken',
-          },
-        ),
-      );
+      Object? lastError;
+      for (var attempt = 1; attempt <= _fcmRegisterMaxAttempts; attempt++) {
+        try {
+          // Отдельный клиент: у глобального dio connectTimeout 15 с — на медленном API
+          // регистрация FCM часто падала (см. log.txt), из‑за этого пуши не доходили.
+          final fcmDio = Dio(
+            dio.options.copyWith(
+              connectTimeout: _fcmRegisterConnectTimeout,
+              receiveTimeout: _fcmRegisterReceiveTimeout,
+              sendTimeout: _fcmRegisterReceiveTimeout,
+            ),
+          );
+          for (final interceptor in dio.interceptors) {
+            fcmDio.interceptors.add(interceptor);
+          }
 
-      if (response.statusCode == 200) {
-        print('[NOTIFICATIONS] ✅ FCM токен успешно отправлен на сервер');
-      } else {
-        print('[NOTIFICATIONS] ⚠️ Сервер вернул статус: ${response.statusCode}');
+          final response = await fcmDio.post(
+            '/user/fcm-token',
+            data: {
+              'fcm_token': token,
+              'device_type': Platform.isAndroid ? 'android' : 'ios',
+            },
+            options: Options(
+              headers: {
+                'Authorization': 'Bearer $activeToken',
+              },
+            ),
+          );
+
+          if (response.statusCode == 200) {
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.remove(_pendingFcmTokenKey);
+            print('[NOTIFICATIONS] ✅ FCM токен успешно отправлен на сервер');
+            return;
+          }
+          lastError = 'HTTP ${response.statusCode}';
+          print(
+            '[NOTIFICATIONS] ⚠️ Попытка $attempt/$_fcmRegisterMaxAttempts: статус ${response.statusCode}',
+          );
+        } on DioException catch (e) {
+          lastError = e;
+          final isTimeout = e.type == DioExceptionType.connectionTimeout ||
+              e.type == DioExceptionType.receiveTimeout ||
+              e.type == DioExceptionType.sendTimeout;
+          print(
+            '[NOTIFICATIONS] ⚠️ Попытка $attempt/$_fcmRegisterMaxAttempts fcm-token: '
+            '${isTimeout ? "таймаут" : e.type} — ${e.message}',
+          );
+          if (attempt < _fcmRegisterMaxAttempts) {
+            await Future<void>.delayed(Duration(seconds: attempt * 2));
+          }
+        } catch (e) {
+          lastError = e;
+          print(
+            '[NOTIFICATIONS] ⚠️ Попытка $attempt/$_fcmRegisterMaxAttempts: $e',
+          );
+          if (attempt < _fcmRegisterMaxAttempts) {
+            await Future<void>.delayed(Duration(seconds: attempt * 2));
+          }
+        }
       }
+
+      print(
+        '[NOTIFICATIONS] ❌ Не удалось зарегистрировать FCM после $_fcmRegisterMaxAttempts попыток: $lastError',
+      );
     } catch (e) {
       print('[NOTIFICATIONS] ❌ Ошибка отправки FCM токена на сервер: $e');
+    }
+  }
+
+  /// Отправить сохранённый FCM-токен после входа в аккаунт.
+  Future<void> syncPendingFcmTokenIfNeeded() async {
+    if (AppConfig.getActiveBearerToken().isEmpty) return;
+
+    final prefs = await SharedPreferences.getInstance();
+    final pending = prefs.getString(_pendingFcmTokenKey);
+    if (pending != null && pending.isNotEmpty) {
+      await _sendTokenToServer(pending);
+      return;
+    }
+
+    if (_fcmToken != null && _fcmToken!.isNotEmpty) {
+      await _sendTokenToServer(_fcmToken!);
     }
   }
 
   /// Показать локальное уведомление
   Future<void> _showLocalNotification(RemoteMessage message) async {
     final notification = message.notification;
-    final android = message.notification?.android;
 
     if (notification == null) return;
 
     // Очищаем HTML из body для отображения в уведомлении
     String cleanBody = _cleanHtmlFromText(notification.body ?? '');
-
-    const androidDetails = AndroidNotificationDetails(
-      'ssboss_notifications',
-      'SSBOSS Уведомления',
-      channelDescription: 'Уведомления о заказах и акциях',
-      importance: Importance.high,
-      priority: Priority.high,
-      playSound: true,
-      enableVibration: true,
-      icon: '@mipmap/ic_launcher',
-      styleInformation: BigTextStyleInformation(''), // Для длинных текстов
-    );
 
     const iosDetails = DarwinNotificationDetails(
       presentAlert: true,
@@ -448,10 +507,10 @@ class NotificationService {
   /// Публичный метод для отправки FCM токена на сервер
   /// Используется после успешной авторизации
   Future<void> sendFcmTokenToServer() async {
+    await syncPendingFcmTokenIfNeeded();
     if (_fcmToken != null && _fcmToken!.isNotEmpty) {
       await _sendTokenToServer(_fcmToken!);
     } else {
-      // Если токен еще не получен, попробуем получить его
       await _getAndSendFcmToken();
     }
   }
@@ -460,6 +519,9 @@ class NotificationService {
 /// Обработчик фоновых сообщений (должен быть top-level функцией)
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
   print('[NOTIFICATIONS] 🔵 Фоновое сообщение получено: ${message.messageId}');
   print('[NOTIFICATIONS]   Заголовок: ${message.notification?.title}');
   print('[NOTIFICATIONS]   Текст: ${message.notification?.body}');

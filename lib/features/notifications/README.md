@@ -2,6 +2,16 @@
 
 ## Варианты реализации
 
+### ⚠️ Realtime Database ≠ Push-уведомления
+
+Письмо Firebase про **отключение Realtime Database** (например, проект `ssbossactual`) **не влияет** на push.
+
+Мобильное приложение и сервер используют **Firebase Cloud Messaging** в проекте **`ssboss-940a1`**:
+- токен устройства → `POST /user/fcm-token` → поле `users.fcm_token`
+- отправка с сервера через `PushNotificationService` + `service-account.json`
+
+Realtime Database в приложении **не используется**. Новые правила RTDB можно оставить для безопасности, но для push они не нужны.
+
 ### 1. **Firebase Cloud Messaging (FCM)** ✅ РЕАЛИЗОВАНО
 **Описание:** Сервер отправляет уведомления через Firebase Cloud Messaging.
 

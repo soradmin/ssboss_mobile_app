@@ -5,7 +5,6 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shimmer/shimmer.dart';
 import '../repo/catalog_api.dart';
 import '../../../core/result.dart';
-import '../../../theme.dart';
 import '../../cart/controllers/cart_controller.dart';
 
 // Провайдер для количества товаров в корзине
@@ -434,8 +433,12 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
 
   Widget _buildBody() {
     if (_loading) {
-      return const Center(
-        child: CircularProgressIndicator(color: Color(0xFF8813BA)),
+      return RefreshIndicator(
+        onRefresh: _loadCategories,
+        color: const Color(0xFF8813BA),
+        child: _CatalogCategoriesSkeleton(
+          bottomInset: MediaQuery.of(context).padding.bottom + 100,
+        ),
       );
     }
 
@@ -746,37 +749,10 @@ class _CategoryTile extends StatelessWidget {
                   fit: BoxFit.cover,
                   width: double.infinity,
                   height: double.infinity,
-                  placeholder: (context, url) => Container(
-                    color: const Color(0xFFF2F2F2),
-                    child: const Center(
-                      child: Icon(
-                        Icons.category_outlined,
-                        size: 48,
-                        color: Colors.grey,
-                      ),
-                    ),
-                  ),
-                  errorWidget: (context, url, error) => Container(
-                    color: const Color(0xFFF2F2F2),
-                    child: const Center(
-                      child: Icon(
-                        Icons.category_outlined,
-                        size: 48,
-                        color: Colors.grey,
-                      ),
-                    ),
-                  ),
+                  placeholder: (context, url) => const _ShimmerCategoryImageFill(),
+                  errorWidget: (context, url, error) => const _CategoryImageErrorPlaceholder(),
                 )
-              : Container(
-                  color: const Color(0xFFF2F2F2),
-                  child: const Center(
-                    child: Icon(
-                      Icons.category_outlined,
-                      size: 48,
-                      color: Colors.grey,
-                    ),
-                  ),
-                ),
+              : const _CategoryImageErrorPlaceholder(),
         ),
         // Название категории в верхнем левом углу без фона
         Positioned(
@@ -982,37 +958,10 @@ class _CategorySearchDelegate extends SearchDelegate<String> {
                           fit: BoxFit.cover,
                           width: double.infinity,
                           height: double.infinity,
-                          placeholder: (context, url) => Container(
-                            color: const Color(0xFFF2F2F2),
-                            child: const Center(
-                              child: Icon(
-                                Icons.category_outlined,
-                                size: 48,
-                                color: Colors.grey,
-                              ),
-                            ),
-                          ),
-                          errorWidget: (context, url, error) => Container(
-                            color: const Color(0xFFF2F2F2),
-                            child: const Center(
-                              child: Icon(
-                                Icons.category_outlined,
-                                size: 48,
-                                color: Colors.grey,
-                              ),
-                            ),
-                          ),
+                          placeholder: (context, url) => const _ShimmerCategoryImageFill(),
+                          errorWidget: (context, url, error) => const _CategoryImageErrorPlaceholder(),
                         )
-                      : Container(
-                          color: const Color(0xFFF2F2F2),
-                          child: const Center(
-                            child: Icon(
-                              Icons.category_outlined,
-                              size: 48,
-                              color: Colors.grey,
-                            ),
-                          ),
-                        ),
+                      : const _CategoryImageErrorPlaceholder(),
                 ),
                 // Название категории в верхнем левом углу без фона
                 Positioned(
@@ -1040,6 +989,135 @@ class _CategorySearchDelegate extends SearchDelegate<String> {
           ),
         );
       },
+    );
+  }
+}
+
+/// Полноэкранная сетка скелетонов при первой загрузке каталога.
+class _CatalogCategoriesSkeleton extends StatelessWidget {
+  final double bottomInset;
+
+  const _CatalogCategoriesSkeleton({required this.bottomInset});
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomScrollView(
+      physics: const AlwaysScrollableScrollPhysics(
+        parent: BouncingScrollPhysics(),
+      ),
+      slivers: [
+        SliverPadding(
+          padding: EdgeInsets.only(
+            left: 16,
+            right: 16,
+            top: 16,
+            bottom: bottomInset,
+          ),
+          sliver: SliverGrid.builder(
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 3,
+              mainAxisSpacing: 8,
+              crossAxisSpacing: 8,
+              childAspectRatio: 0.8,
+            ),
+            itemCount: 12,
+            itemBuilder: (_, __) => const _CategoryTileSkeleton(),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Ячейка-скелетон (картинка + полоски заголовка, как на маркетплейсах).
+class _CategoryTileSkeleton extends StatelessWidget {
+  const _CategoryTileSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: Shimmer.fromColors(
+        baseColor: const Color(0xFFE4E4E4),
+        highlightColor: const Color(0xFFF9F9F9),
+        period: const Duration(milliseconds: 1250),
+        child: Container(
+          color: const Color(0xFFE4E4E4),
+          padding: const EdgeInsets.all(10),
+          alignment: Alignment.topLeft,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                height: 9,
+                width: 72,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFCACACA),
+                  borderRadius: BorderRadius.circular(3),
+                ),
+              ),
+              const SizedBox(height: 6),
+              Container(
+                height: 8,
+                width: 48,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFC4C4C4),
+                  borderRadius: BorderRadius.circular(3),
+                ),
+              ),
+              const Spacer(),
+              Center(
+                child: Container(
+                  height: 5,
+                  width: 40,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFBDBDBD),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Shimmer на время загрузки картинки категории.
+class _ShimmerCategoryImageFill extends StatelessWidget {
+  const _ShimmerCategoryImageFill();
+
+  @override
+  Widget build(BuildContext context) {
+    return Shimmer.fromColors(
+      baseColor: const Color(0xFFE6E6E6),
+      highlightColor: const Color(0xFFF8F8F8),
+      period: const Duration(milliseconds: 1250),
+      child: Container(
+        width: double.infinity,
+        height: double.infinity,
+        color: const Color(0xFFE6E6E6),
+      ),
+    );
+  }
+}
+
+/// Нет изображения / ошибка загрузки — без крупной иконки «категория».
+class _CategoryImageErrorPlaceholder extends StatelessWidget {
+  const _CategoryImageErrorPlaceholder();
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      color: const Color(0xFFF0F0F0),
+      child: Center(
+        child: Icon(
+          Icons.image_not_supported_outlined,
+          size: 28,
+          color: Colors.grey.shade400,
+        ),
+      ),
     );
   }
 }

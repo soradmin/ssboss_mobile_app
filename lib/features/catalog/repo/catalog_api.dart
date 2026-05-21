@@ -12,6 +12,37 @@ import '../models/home_page_data.dart';
 import '../models/flash_sale.dart';
 import 'package:dio/dio.dart' show ResponseType;
 
+List<ProductImage> parseProductImagesFromApi(
+  List<dynamic> rawImgs,
+  String Function(String raw) imgUrl,
+) {
+  return rawImgs
+      .map((it) {
+        if (it is String) {
+          final u = imgUrl(it);
+          return ProductImage(image: u, thumb: u);
+        }
+        if (it is Map) {
+          final m = it.cast<String, dynamic>();
+          final image = imgUrl(
+            (m['image'] ?? m['url'] ?? m['src'] ?? m['file'] ?? '').toString(),
+          );
+          final thumb = imgUrl(
+            (m['thumb'] ?? m['thumbnail'] ?? m['thumb_url'] ?? image).toString(),
+          );
+          return ProductImage.fromJson({
+            'id': m['id'],
+            'image': image,
+            'thumb': thumb,
+            'attributes': m['attributes'],
+          });
+        }
+        return ProductImage(image: '', thumb: '');
+      })
+      .where((e) => e.image.isNotEmpty)
+      .toList();
+}
+
 class CatalogApi {
   Future<Result<List<Product>>> products({
     int page = 1,
@@ -559,33 +590,30 @@ class CatalogApi {
 
       final p = Product.fromJson(obj);
 
-      // Попытка вытащить изображения из разных возможных полей ответа
-      List<ProductImage> normalizedImages = p.images
-          .map((img) => ProductImage(image: _imgUrl(img.image), thumb: _imgUrl(img.thumb)))
-          .toList();
-      if (normalizedImages.isEmpty) {
-        List<dynamic>? rawImgs;
-        for (final key in ['images', 'product_image_names', 'gallery', 'photos', 'media', 'product_images']) {
-          if (obj[key] is List) {
-            rawImgs = obj[key] as List;
-            break;
-          }
+      // Галерея: приоритет product_image_names/product_images (с attributes для вариантов)
+      List<ProductImage> normalizedImages = [];
+      for (final key in [
+        'product_image_names',
+        'product_images',
+        'images',
+        'gallery',
+        'photos',
+        'media',
+      ]) {
+        if (obj[key] is List && (obj[key] as List).isNotEmpty) {
+          normalizedImages = parseProductImagesFromApi(obj[key] as List, _imgUrl);
+          if (normalizedImages.isNotEmpty) break;
         }
-        if (rawImgs != null) {
-          normalizedImages = rawImgs.map((it) {
-            if (it is String) {
-              final u = _imgUrl(it);
-              return ProductImage(image: u, thumb: u);
-            } else if (it is Map) {
-              final m = it.cast<String, dynamic>();
-              final img = _imgUrl((m['image'] ?? m['url'] ?? m['src'] ?? m['file'] ?? '').toString());
-              final th = _imgUrl((m['thumb'] ?? m['thumbnail'] ?? m['thumb_url'] ?? img).toString());
-              return ProductImage(image: img, thumb: th);
-            } else {
-              return ProductImage(image: '', thumb: '');
-            }
-          }).where((e) => e.image.isNotEmpty).toList();
-        }
+      }
+      if (normalizedImages.isEmpty && p.images.isNotEmpty) {
+        normalizedImages = p.images
+            .map((img) => ProductImage(
+                  id: img.id,
+                  image: _imgUrl(img.image),
+                  thumb: _imgUrl(img.thumb),
+                  attributeValueIds: img.attributeValueIds,
+                ))
+            .toList();
       }
 
       // Если в карточке есть основное изображение — добавим в галерею первым

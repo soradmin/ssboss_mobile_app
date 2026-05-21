@@ -6,6 +6,7 @@ import '../../../theme.dart';
 import '../../../core/config.dart';
 import '../../../core/widgets/bottom_navigation_bar.dart';
 import '../../catalog/models/product.dart';
+import '../../catalog/widgets/product_price_row.dart';
 import '../../catalog/screens/product_details_screen.dart';
 import '../../cart/controllers/cart_controller.dart';
 import '../repo/favorites_api.dart';
@@ -704,29 +705,9 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                 // Цена (сразу после изображения)
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  child: Row(
-                    children: [
-                      Text(
-                        '${product.price.toStringAsFixed(0)} с.',
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.red,
-                        ),
-                      ),
-                      if (product.oldPrice != null &&
-                          product.oldPrice! > product.price) ...[
-                        const SizedBox(width: 6),
-                        Text(
-                          '${product.oldPrice!.toStringAsFixed(0)} с.',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey[600],
-                            decoration: TextDecoration.lineThrough,
-                          ),
-                        ),
-                      ],
-                    ],
+                  child: ProductPriceRow.fromProduct(
+                    product,
+                    priceFontSize: 18,
                   ),
                 ),
 

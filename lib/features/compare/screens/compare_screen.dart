@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../../core/widgets/bottom_navigation_bar.dart';
 import '../../catalog/models/product.dart';
+import '../../catalog/widgets/product_price_row.dart';
 import '../repo/compare_api.dart';
 import '../../../theme.dart';
 import '../../../core/config.dart'; // AppConfig
@@ -528,29 +529,9 @@ class _CompareScreenState extends ConsumerState<CompareScreen> {
                   // Цена (сразу после изображения)
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    child: Row(
-                      children: [
-                        Text(
-                          '${product.price.toStringAsFixed(0)} с.',
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.red,
-                          ),
-                        ),
-                        if (product.oldPrice != null &&
-                            product.oldPrice! > product.price) ...[
-                          const SizedBox(width: 6),
-                          Text(
-                            '${product.oldPrice!.toStringAsFixed(0)} с.',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey[600],
-                              decoration: TextDecoration.lineThrough,
-                            ),
-                          ),
-                        ],
-                      ],
+                    child: ProductPriceRow.fromProduct(
+                      product,
+                      priceFontSize: 18,
                     ),
                   ),
 

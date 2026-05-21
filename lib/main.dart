@@ -1,4 +1,8 @@
+import 'dart:io' show Platform;
+
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/config.dart';
@@ -8,14 +12,22 @@ import 'features/cart/providers/cart_sync_provider.dart';
 import 'features/cart/providers/background_sync_provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'firebase_options.dart';
 import 'features/notifications/services/notification_service.dart';
 import 'features/notifications/providers/notification_provider.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Инициализируем Firebase
-  await Firebase.initializeApp();
+  // Android 15+: явный edge-to-edge вместо нестабильного режима по умолчанию (Play Console).
+  if (!kIsWeb && Platform.isAndroid) {
+    await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+  }
+
+  // FCM-проект ssboss-940a1 (не путать с ssbossactual / Realtime Database)
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
 
   // Регистрируем обработчик фоновых сообщений
   FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);

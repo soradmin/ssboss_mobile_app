@@ -29,13 +29,12 @@ class OrderValidator {
       errors.add('Количество товаров должно быть больше 0');
     }
 
-    // Проверка адреса
-    if (addressId <= 0) {
-      errors.add('Не выбран адрес доставки');
-    }
-
     if (selectedAddress == null) {
       errors.add('Информация об адресе не найдена');
+    } else if (!selectedAddress.isLocalPickup &&
+        (selectedAddress.serverAddressId == null ||
+            selectedAddress.serverAddressId! <= 0)) {
+      errors.add('Не выбран адрес доставки');
     } else {
       // Проверка данных адреса
       if (selectedAddress.name.isEmpty) {

@@ -3,6 +3,8 @@ import '../../../core/api_client.dart';
 import '../../../core/result.dart';
 import '../../../core/config.dart';
 import '../models/server_cart_line.dart';
+import '../../catalog/models/product.dart';
+import '../../checkout/models/address.dart';
 
 class CartApi {
   /// Добавление товара в серверную корзину
@@ -186,7 +188,7 @@ class CartApi {
           productName = (productMap['title'] ?? productMap['name'] ?? '').toString();
           final rawImage = (productMap['image'] ?? '').toString();
           productImage = rawImage.isNotEmpty ? AppConfig.imageUrl(rawImage) : '';
-          productPrice = _toDouble(productMap['offered'] ?? productMap['selling'] ?? productMap['price'] ?? 0);
+          productPrice = resolveProductPriceFields(productMap).price;
         }
         
         // Обрабатываем изображение если оно еще не обработано
@@ -365,7 +367,9 @@ class CartApi {
         if (m != null) {
           final name = (m['name'] ?? m['title'] ?? '').toString();
           final image = (m['image'] ?? m['thumbnail'] ?? m['thumb'] ?? '').toString();
-          final price = _toDouble(m['price'] ?? m['offered'] ?? m['selling'] ?? 0);
+          final price = resolveProductPriceFields(
+            Map<String, dynamic>.from(m),
+          ).price;
           print('[DEBUG] CartApi._getProductDetails: Товар $id, исходное изображение: "$image"');
           final processedImage = AppConfig.imageUrl(image);
           print('[DEBUG] CartApi._getProductDetails: Обработанное изображение: "$processedImage"');
@@ -396,7 +400,12 @@ class CartApi {
   /// Обновление корзины с выбранным адресом доставки
   /// Это нужно сделать перед созданием заказа, чтобы сервер знал, какой адрес использовать
   /// [deliveryType] - 'pickup' для самовывоза или 'delivery' для доставки на адрес
-  Future<Result<void>> updateShippingAddress(int addressId, {String? addressType, String? deliveryType}) async {
+  Future<Result<void>> updateShippingAddress(
+    int addressId, {
+    String? addressType,
+    String? deliveryType,
+    int? selectedAddressForServer,
+  }) async {
     try {
       print('[DEBUG] CartApi.updateShippingAddress: Обновляем корзину с адресом $addressId (тип: ${addressType ?? 'не указан'})');
       
@@ -427,7 +436,10 @@ class CartApi {
       print('[DEBUG] CartApi.updateShippingAddress: addressId = $addressId, addressType = $addressType, deliveryType = $deliveryType');
       
       // Используем deliveryType если передан, иначе определяем по addressType
-      final effectiveDeliveryType = deliveryType ?? (addressType == 'pickup' && addressId == 1 ? 'pickup' : 'delivery');
+      final effectiveDeliveryType = deliveryType ??
+          (addressType == 'pickup' || addressId == Address.localPickupId
+              ? 'pickup'
+              : 'delivery');
       final shippingType = effectiveDeliveryType == 'pickup' ? 2 : 1; // 2 = pickup, 1 = delivery
       
       // Для статического пункта выдачи (ID 1) создаем объект shipping_place
@@ -462,11 +474,24 @@ class CartApi {
         };
       }
       
-      final payload = {
+      // Не отправляем localPickupId (0) — в БД id=1 это чужой адрес (Roman Ahmed из сидера).
+      final serverAddressId = selectedAddressForServer ??
+          (addressId > Address.localPickupId ? addressId : null);
+
+      final payload = <String, dynamic>{
         'cart': cartPayload,
-        'selected_address': addressId,
         if (queryParams.containsKey('user_token')) 'user_token': queryParams['user_token'],
       };
+      if (serverAddressId != null && serverAddressId > 0) {
+        payload['selected_address'] = serverAddressId;
+        print(
+          '[DEBUG] CartApi.updateShippingAddress: selected_address для сервера = $serverAddressId',
+        );
+      } else {
+        print(
+          '[DEBUG] CartApi.updateShippingAddress: selected_address не отправляем (самовывоз)',
+        );
+      }
       
       print('[DEBUG] CartApi.updateShippingAddress: Payload = $payload');
       

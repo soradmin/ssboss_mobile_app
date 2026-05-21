@@ -4,6 +4,7 @@ import '../../../core/config.dart';
 import '../../../core/result.dart';
 import '../repo/auth_api.dart';
 import '../../cart/controllers/cart_controller.dart';
+import '../../notifications/services/notification_service.dart';
 
 class AuthNotifier extends StateNotifier<User> {
   final Ref _ref;
@@ -61,8 +62,8 @@ class AuthNotifier extends StateNotifier<User> {
               isAuthenticated: true,
             );
             print('[DEBUG] AuthProvider: Пользователь авторизован через мобильный токен: ${userData['name']}');
-            // Автоматически синхронизируем корзину при успешной авторизации
             _syncCartOnAuth();
+            _syncFcmTokenOnAuth();
           } else {
             // Fallback если не удалось получить профиль
             state = const User(
@@ -72,8 +73,8 @@ class AuthNotifier extends StateNotifier<User> {
               isAuthenticated: true,
             );
             print('[DEBUG] AuthProvider: Пользователь авторизован через мобильный токен (fallback)');
-            // Автоматически синхронизируем корзину при успешной авторизации
             _syncCartOnAuth();
+            _syncFcmTokenOnAuth();
           }
         } else {
           print('[DEBUG] AuthProvider: Мобильный токен недействителен');
@@ -108,8 +109,8 @@ class AuthNotifier extends StateNotifier<User> {
                 isAuthenticated: true,
               );
               print('[DEBUG] AuthProvider: Пользователь авторизован через общий токен: ${userData['name']}');
-              // Автоматически синхронизируем корзину при успешной авторизации
               _syncCartOnAuth();
+              _syncFcmTokenOnAuth();
             } else {
               // Fallback если не удалось получить профиль
               state = const User(
@@ -119,8 +120,8 @@ class AuthNotifier extends StateNotifier<User> {
                 isAuthenticated: true,
               );
               print('[DEBUG] AuthProvider: Пользователь авторизован через общий токен (fallback)');
-              // Автоматически синхронизируем корзину при успешной авторизации
               _syncCartOnAuth();
+              _syncFcmTokenOnAuth();
             }
           } else {
             print('[DEBUG] AuthProvider: Общий токен недействителен');
@@ -176,6 +177,21 @@ class AuthNotifier extends StateNotifier<User> {
       print('[DEBUG] AuthProvider: Автоматическая синхронизация корзины завершена');
     } catch (e) {
       print('[DEBUG] AuthProvider: Ошибка автоматической синхронизации корзины: $e');
+    }
+  }
+
+  /// Регистрация FCM-токена на сервере после входа
+  Future<void> _syncFcmTokenOnAuth() async {
+    try {
+      final notificationService = NotificationService();
+      if (notificationService.isInitialized) {
+        await notificationService.syncPendingFcmTokenIfNeeded();
+      } else {
+        await notificationService.initialize();
+      }
+      print('[DEBUG] AuthProvider: FCM токен синхронизирован с сервером');
+    } catch (e) {
+      print('[DEBUG] AuthProvider: Ошибка синхронизации FCM токена: $e');
     }
   }
 

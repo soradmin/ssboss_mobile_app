@@ -16,6 +16,7 @@ import '../../../core/config.dart';
 import '../repo/catalog_api.dart';
 import '../../../core/result.dart';
 import '../models/media.dart';
+import '../widgets/product_price_row.dart';
 import '../../favorites/repo/favorites_api.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -53,10 +54,9 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
     _videos = List<ProductVideo>.from(widget.p.videos);
     // Инициализируем контроллеры для видео
     _chewieControllers.addAll(List.generate(_videos.length, (_) => null));
-    // Если медиа не загружены, подтянем детали по id
-    if (_images.isEmpty && _videos.isEmpty) {
-      _loadDetails();
-    }
+    // Подтягиваем полные данные (галерея + привязка фото к вариантам)
+    _applyDefaultAttributeSelections(widget.p);
+    _loadDetails();
     super.initState();
   }
 
@@ -214,6 +214,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
           videos: full.videos,
           attributes: full.attributes.isNotEmpty ? full.attributes : widget.p.attributes, // preserve attributes
         );
+        _applyDefaultAttributeSelections(_currentProduct!);
       });
     }
     // Загружаем рекомендуемые товары по умолчанию
@@ -347,6 +348,70 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
   }
 
   // Функция для создания ChewieController
+  /// Как на вебе: ищем фото с максимальным совпадением выбранных attribute_value_id.
+  int? _findBestMatchingImageIndex(List<int> selectedValueIds) {
+    if (selectedValueIds.isEmpty || _images.isEmpty) return null;
+
+    int? bestIndex;
+    var bestScore = -1;
+    for (var i = 0; i < _images.length; i++) {
+      final linkedIds = _images[i].attributeValueIds;
+      if (linkedIds.isEmpty) continue;
+
+      var score = 0;
+      for (final id in selectedValueIds) {
+        if (linkedIds.contains(id)) score++;
+      }
+      if (score > bestScore) {
+        bestScore = score;
+        bestIndex = i;
+      }
+    }
+    return bestIndex;
+  }
+
+  void _switchToVariantImage() {
+    final selectedIds = _selectedAttributes.values.where((id) => id > 0).toList();
+    final imageIndex = _findBestMatchingImageIndex(selectedIds);
+    if (imageIndex == null || imageIndex < 0 || imageIndex >= _images.length) {
+      return;
+    }
+
+    setState(() => _current = imageIndex);
+    if (_images.length + _videos.length > 1) {
+      _carouselController.animateToPage(
+        imageIndex,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+    }
+  }
+
+  void _onAttributeValueSelected(int attributeId, int attributeValueId) {
+    setState(() {
+      _selectedAttributes[attributeId] = attributeValueId;
+    });
+    _switchToVariantImage();
+  }
+
+  void _applyDefaultAttributeSelections(Product product) {
+    if (product.attributes.isEmpty) return;
+
+    var changed = false;
+    for (final attr in product.attributes) {
+      if (_selectedAttributes.containsKey(attr.id)) continue;
+      if (attr.values.isEmpty) continue;
+      _selectedAttributes[attr.id] = attr.values.first.attributeValueId;
+      changed = true;
+    }
+
+    if (changed) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _switchToVariantImage();
+      });
+    }
+  }
+
   Future<void> _initializeVideoPlayer(int index) async {
     if (_chewieControllers[index] != null) return; // Уже инициализирован
 
@@ -715,12 +780,10 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                       children: attr.values.map((v) {
                         final isSelected = selectedValueId == v.attributeValueId;
                         return GestureDetector(
-                          onTap: () {
-                            setState(() {
-                              // Сохраняем выбранное значение атрибута
-                              _selectedAttributes[attr.id] = v.attributeValueId;
-                            });
-                          },
+                          onTap: () => _onAttributeValueSelected(
+                            attr.id,
+                            v.attributeValueId,
+                          ),
                           child: Container(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 16,
@@ -762,7 +825,12 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
           ],
           Text(widget.p.name, style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 8),
-          Text('${widget.p.price.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20)),
+          ProductPriceRow(
+            price: (_currentProduct ?? widget.p).price,
+            oldPrice: (_currentProduct ?? widget.p).oldPrice,
+            priceFontSize: 20,
+            oldPriceFontSize: 14,
+          ),
           
           // Рейтинг и отзывы товара
           if ((_currentProduct ?? widget.p).rating > 0 || (_currentProduct ?? widget.p).reviewCount > 0) ...[
@@ -1578,29 +1646,9 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                 // Цена (сразу после изображения)
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  child: Row(
-                    children: [
-                      Text(
-                        '${product.price.toStringAsFixed(0)} с.',
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.red,
-                        ),
-                      ),
-                      if (product.oldPrice != null &&
-                          product.oldPrice! > product.price) ...[
-                        const SizedBox(width: 6),
-                        Text(
-                          '${product.oldPrice!.toStringAsFixed(0)} с.',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey[600],
-                            decoration: TextDecoration.lineThrough,
-                          ),
-                        ),
-                      ],
-                    ],
+                  child: ProductPriceRow.fromProduct(
+                    product,
+                    priceFontSize: 18,
                   ),
                 ),
                 // Информация о товаре

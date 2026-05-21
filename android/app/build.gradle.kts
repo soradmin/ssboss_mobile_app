@@ -84,6 +84,8 @@ android {
 
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
+    // enableEdgeToEdge() в MainActivity (Android 15 edge-to-edge, Play Console)
+    implementation("androidx.activity:activity-ktx:1.9.3")
 }
 
 // Подавление предупреждений об устаревших опциях Java

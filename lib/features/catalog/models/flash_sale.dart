@@ -65,34 +65,14 @@ class FlashSaleProduct {
     Product productData;
     if (productDataJson != null) {
       // Создаем Product из product_data
-      // В product_data используется 'title' вместо 'name', 'selling' для обычной цены, 'offered' для цены со скидкой
-      // Обрабатываем selling и offered как строки или числа
-      double? sellingPrice;
-      final sellingValue = productDataJson['selling'];
-      if (sellingValue != null) {
-        if (sellingValue is num) {
-          sellingPrice = sellingValue.toDouble();
-        } else if (sellingValue is String) {
-          sellingPrice = double.tryParse(sellingValue);
-        }
-      }
-      
-      double? offeredPrice;
-      final offeredValue = productDataJson['offered'];
-      if (offeredValue != null) {
-        if (offeredValue is num) {
-          offeredPrice = offeredValue.toDouble();
-        } else if (offeredValue is String) {
-          offeredPrice = double.tryParse(offeredValue);
-        }
-      }
-      
+      final prices = resolveProductPriceFields(productDataJson);
+
       productData = Product(
         id: (productDataJson['id'] ?? json['product_id'] ?? 0) as int,
         name: (productDataJson['title'] ?? '').toString(),
         image: (productDataJson['image'] ?? '').toString(),
-        price: flashSalePrice ?? offeredPrice ?? sellingPrice ?? 0.0,
-        oldPrice: sellingPrice,
+        price: flashSalePrice ?? prices.price,
+        oldPrice: prices.oldPrice,
         rating: (productDataJson['rating'] as num?)?.toDouble() ?? 0.0,
         reviewCount: (productDataJson['review_count'] ?? 0) as int,
         badge: productDataJson['badge']?.toString(),

@@ -1,4 +1,7 @@
 class Address {
+  /// Локальный ID пункта выдачи в приложении (не из БД, не отправлять на сервер как selected_address).
+  static const int localPickupId = 0;
+
   final int id;
   final String name;
   final String address;
@@ -54,5 +57,14 @@ class Address {
   String get fullAddress {
     final parts = [city, region, address].where((e) => e != null && e.isNotEmpty);
     return parts.join(', ');
+  }
+
+  bool get isLocalPickup => type == 'pickup' && id == localPickupId;
+
+  /// ID адреса в user_addresses для API (selected_address / default_address).
+  int? get serverAddressId {
+    if (isLocalPickup) return null;
+    final serverId = userAddressId ?? id;
+    return serverId > 0 ? serverId : null;
   }
 }

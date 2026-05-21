@@ -160,12 +160,27 @@ class PaymentApi {
       if (selectedAddress != null) {
         print('[DEBUG] PaymentApi.createOrder: Обновляем корзину с выбранным адресом ${selectedAddress.id} (тип: ${selectedAddress.type})...');
         final cartApi = CartApi();
-        // Определяем deliveryType: используем переданный deliveryType, или если адрес статический (ID 1, pickup), то 'pickup', иначе 'delivery'
-        final effectiveDeliveryType = deliveryType ?? ((addressId == 1 && selectedAddress.type == 'pickup') ? 'pickup' : 'delivery');
+        final effectiveDeliveryType = deliveryType ??
+            (selectedAddress.isLocalPickup || selectedAddress.type == 'pickup'
+                ? 'pickup'
+                : 'delivery');
+
+        final allAddresses =
+            addressResult is Ok<List<Address>> ? addressResult.value : <Address>[];
+        final serverAddressId = _resolveSelectedAddressForServer(
+          selectedAddress,
+          allAddresses,
+          profileDefaultAddress: userData?['default_address'] as int?,
+        );
+        print(
+          '[DEBUG] PaymentApi.createOrder: serverAddressId для заказа = $serverAddressId',
+        );
+
         final updateResult = await cartApi.updateShippingAddress(
-          addressId, 
+          addressId,
           addressType: selectedAddress.type,
           deliveryType: effectiveDeliveryType,
+          selectedAddressForServer: serverAddressId,
         );
         if (updateResult is Err) {
           print('[ERROR] PaymentApi.createOrder: Не удалось обновить корзину с адресом: ${(updateResult as Err).message}');
@@ -736,5 +751,40 @@ class PaymentApi {
     final qty = quantity is int ? quantity : int.tryParse(quantity.toString()) ?? 0;
     final prc = price is double ? price : double.tryParse(price.toString()) ?? 0.0;
     return qty * prc;
+  }
+
+  /// ID адреса для selected_address на сервере (имя клиента в заказе).
+  /// Пункт выдачи в приложении не имеет ID в БД — нельзя отправлять 0 или 1.
+  static int? _resolveSelectedAddressForServer(
+    Address selected,
+    List<Address> addresses, {
+    int? profileDefaultAddress,
+  }) {
+    if (!selected.isLocalPickup) {
+      return selected.serverAddressId;
+    }
+
+    final deliveryAddresses = addresses
+        .where((a) => a.type == 'delivery' && a.serverAddressId != null)
+        .toList();
+    if (deliveryAddresses.isNotEmpty) {
+      Address? preferred;
+      for (final a in deliveryAddresses) {
+        if (a.isDefault) {
+          preferred = a;
+          break;
+        }
+      }
+      preferred ??= deliveryAddresses.first;
+      return preferred.serverAddressId;
+    }
+
+    if (profileDefaultAddress != null &&
+        profileDefaultAddress > 0 &&
+        addresses.any((a) => a.serverAddressId == profileDefaultAddress)) {
+      return profileDefaultAddress;
+    }
+
+    return null;
   }
 }

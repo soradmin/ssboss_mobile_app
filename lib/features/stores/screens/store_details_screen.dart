@@ -8,6 +8,7 @@ import '../../../core/config.dart';
 import '../models/store.dart';
 import '../repo/store_api.dart';
 import '../../catalog/models/product.dart';
+import '../../catalog/widgets/product_grid_card.dart';
 
 class StoreDetailsScreen extends ConsumerStatefulWidget {
   final String storeSlug;
@@ -415,7 +416,18 @@ class _StoreDetailsScreenState extends ConsumerState<StoreDetailsScreen> {
         ),
         const SizedBox(height: 16),
         if (_productsLoading)
-          const Center(child: CircularProgressIndicator())
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              childAspectRatio: ProductGridCard.gridChildAspectRatio,
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
+            ),
+            itemCount: 6,
+            itemBuilder: (context, index) => const ProductGridCardSkeleton(),
+          )
         else if (_products.isEmpty)
           Center(
             child: Padding(
@@ -432,148 +444,16 @@ class _StoreDetailsScreenState extends ConsumerState<StoreDetailsScreen> {
             physics: const NeverScrollableScrollPhysics(),
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 2,
-              childAspectRatio: 0.65,
-              crossAxisSpacing: 8,
-              mainAxisSpacing: 8,
+              childAspectRatio: ProductGridCard.gridChildAspectRatio,
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
             ),
             itemCount: _products.length,
             itemBuilder: (context, index) {
-              final product = _products[index];
-              return _buildProductCard(product);
+              return ProductGridCard(product: _products[index]);
             },
           ),
       ],
-    );
-  }
-
-  Widget _buildProductCard(Product product) {
-    return GestureDetector(
-      onTap: () {
-        context.push('/product/${product.id}');
-      },
-      child: Card(
-        elevation: 2,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Изображение товара
-            Expanded(
-              flex: 3,
-              child: Stack(
-                children: [
-                  ClipRRect(
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-                    child: CachedNetworkImage(
-                      imageUrl: AppConfig.imageUrl(product.image),
-                      fit: BoxFit.cover,
-                      width: double.infinity,
-                      placeholder: (context, url) => Container(
-                        color: Colors.grey[200],
-                        child: const Center(child: CircularProgressIndicator()),
-                      ),
-                      errorWidget: (context, url, error) => Container(
-                        color: Colors.grey[200],
-                        child: const Icon(Icons.image_not_supported_outlined),
-                      ),
-                    ),
-                  ),
-                  if (product.badge != null && product.badge!.isNotEmpty)
-                    Positioned(
-                      top: 8,
-                      right: 8,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: primaryColor,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          product.badge!,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            // Цена (сразу после изображения)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              child: Row(
-                children: [
-                  Text(
-                    '${product.price.toStringAsFixed(0)} с.',
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.red,
-                    ),
-                  ),
-                  if (product.oldPrice != null && product.oldPrice! > product.price) ...[
-                    const SizedBox(width: 6),
-                    Text(
-                      '${product.oldPrice!.toStringAsFixed(0)} с.',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey[600],
-                        decoration: TextDecoration.lineThrough,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            // Информация о товаре
-            Flexible(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(8, 2, 8, 2),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      product.name,
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w500,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    if (product.rating > 0)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 2),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.star, size: 11, color: Colors.amber),
-                            const SizedBox(width: 2),
-                            Text(
-                              product.rating.toStringAsFixed(1),
-                              style: const TextStyle(fontSize: 9),
-                            ),
-                            if (product.reviewCount > 0) ...[
-                              const SizedBox(width: 4),
-                              Text(
-                                '(${product.reviewCount})',
-                                style: TextStyle(fontSize: 9, color: Colors.grey[600]),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 

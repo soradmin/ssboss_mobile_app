@@ -331,7 +331,7 @@ class AddressApi {
       // Сначала добавляем статический пункт выдачи
       final List<Address> addresses = [
         const Address(
-          id: 1,
+          id: Address.localPickupId,
           name: 'Пункт выдачи SSBOSS',
           address: 'улица Джаббора Расулова, 6/1',
           city: 'Душанбе',
@@ -506,7 +506,7 @@ class AddressApi {
       // В случае ошибки возвращаем хотя бы статический пункт выдачи
       return const Ok([
         Address(
-          id: 1,
+          id: Address.localPickupId,
           name: 'Пункт выдачи SSBOSS',
           address: 'улица Джаббора Расулова, 6/1',
           city: 'Душанбе',
