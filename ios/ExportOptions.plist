@@ -4,6 +4,15 @@
 <dict>
 	<key>method</key>
 	<string>app-store</string>
+	<key>signingStyle</key>
+	<string>manual</string>
+	<key>signingCertificate</key>
+	<string>Apple Distribution</string>
+	<key>provisioningProfiles</key>
+	<dict>
+		<key>com.ssboss.ssbossmp</key>
+		<string>SSBOSS_AppStore_New</string>
+	</dict>
 	<key>uploadSymbols</key>
 	<true/>
 	<key>uploadBitcode</key>
