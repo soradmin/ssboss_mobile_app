@@ -37,8 +37,7 @@ Future<void> main() async {
   await AppConfig.ensureGuestToken();
   
   // Загружаем Bearer токены если они есть (мобильный имеет приоритет)
-  await AppConfig.getMobileBearerToken();
-  await AppConfig.getBearerToken();
+  await AppConfig.ensureAuthTokensLoaded();
 
   runApp(const ProviderScope(child: IShopApp()));
 }

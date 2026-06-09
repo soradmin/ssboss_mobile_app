@@ -154,6 +154,12 @@ class AppConfig {
     print('[CONFIG] AppConfig.clearMobileBearerToken: Mobile Bearer token cleared');
   }
 
+  /// Подгружает токены из SharedPreferences в память (важно на iOS при cold start).
+  static Future<void> ensureAuthTokensLoaded() async {
+    await getMobileBearerToken();
+    await getBearerToken();
+  }
+
   // --- Методы для работы с активным токеном ---
   static String getActiveBearerToken() {
     // Приоритет: мобильный токен, затем общий токен

@@ -241,6 +241,7 @@ class OrdersController extends ControllerHelper
                     }
 
                     $item['calculated'] = Utils::calcPrice($item);
+                    Utils::enrichOrderAddressCustomerName($item);
 
                     unset($item['ordered_products']);
                     $item['ordered_products'] = $orderedProducts;
@@ -258,6 +259,7 @@ class OrdersController extends ControllerHelper
                     }
 
                     $item['calculated'] = Utils::calcPrice($item);
+                    Utils::enrichOrderAddressCustomerName($item);
 
                     unset($item['ordered_products']);
                     $item['ordered_products'] = $orderedProducts;
@@ -485,12 +487,14 @@ class OrdersController extends ControllerHelper
 
                     array_push($orderIds, $item->id);
                     $item['calculated'] = Utils::calcPrice($item);
+                    Utils::enrichOrderAddressCustomerName($item);
                     $item['created'] = Utils::formatDate(Utils::convertTimeToUSERzone($item->created_at, $request->time_zone));
                 }
             } else {
                 foreach ($data as $item) {
                     array_push($orderIds, $item->id);
                     $item['calculated'] = Utils::calcPrice($item);
+                    Utils::enrichOrderAddressCustomerName($item);
                     $item['created'] = Utils::formatDate($item->created_at);
                 }
             }
@@ -661,6 +665,8 @@ class OrdersController extends ControllerHelper
             } else {
                 $order['created'] = Utils::formatDate($order->created_at);
             }
+
+            Utils::enrichOrderAddressCustomerName($order);
 
             return response()->json(new Response($request->token, $order));
 

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/config.dart';
 import '../../../core/widgets/bottom_navigation_bar.dart';
+import '../../auth/providers/auth_provider.dart';
 import '../../checkout/models/address.dart';
 import '../../checkout/repo/address_api.dart';
 import '../../../core/result.dart';
@@ -22,6 +24,14 @@ class _AddressesScreenState extends ConsumerState<AddressesScreen> {
   void initState() {
     super.initState();
     _loadAddresses();
+    // На iOS токен иногда подгружается чуть позже initState — повторяем загрузку.
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await AppConfig.ensureAuthTokensLoaded();
+      if (!mounted) return;
+      if (AppConfig.hasActiveToken()) {
+        await _loadAddresses();
+      }
+    });
   }
 
   Future<void> _loadAddresses() async {
@@ -160,6 +170,16 @@ class _AddressesScreenState extends ConsumerState<AddressesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(authProvider, (previous, current) {
+      final authReady = current.isAuthenticated && AppConfig.hasActiveToken();
+      final wasReady =
+          (previous?.isAuthenticated ?? false) && AppConfig.hasActiveToken();
+      if (authReady &&
+          (!wasReady || previous?.id != current.id)) {
+        _loadAddresses();
+      }
+    });
+
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final primaryColor = const Color(0xFF9C27B0);

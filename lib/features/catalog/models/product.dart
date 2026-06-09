@@ -41,6 +41,12 @@ class Product {
   final List<ProductVideo> videos; // Список всех видео
   final List<ProductAttribute> attributes;
 
+  /// Товар со скидкой: есть зачёркнутая старая цена (selling) и цена со скидкой (offered).
+  bool get hasDiscount {
+    if (oldPrice == null) return false;
+    return oldPrice! > price && (oldPrice! - price) >= 0.01;
+  }
+
   Product({
     required this.id,
     required this.name,

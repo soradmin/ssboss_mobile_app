@@ -28,26 +28,49 @@ class Address {
     this.type = 'delivery',
   });
 
+  /// Безопасное приведение id из API (int / double / String).
+  static int _parseId(dynamic value, {int fallback = 0}) {
+    if (value == null) return fallback;
+    if (value is int) return value;
+    if (value is double) return value.toInt();
+    if (value is String) return int.tryParse(value.trim()) ?? fallback;
+    return fallback;
+  }
+
   factory Address.fromJson(Map<String, dynamic> json) {
     print('[DEBUG] Address.fromJson: Парсим JSON: $json');
-    
+
+    final id = _parseId(json['id']);
+    final userAddressId = _parseId(
+      json['user_address_id'] ?? json['id'],
+      fallback: id,
+    );
+
     // Обрабатываем структуру API: address_1 + address_2 = полный адрес
     final address1 = json['address_1'] ?? json['address'] ?? json['street'] ?? '';
     final address2 = json['address_2'] ?? '';
     final fullAddress = address2.isNotEmpty ? '$address1, $address2' : address1;
-    
+
+    final defaultRaw = json['default'] ?? json['is_default'] ?? json['isDefault'];
+    final isDefault = defaultRaw == 1 ||
+        defaultRaw == true ||
+        defaultRaw == '1' ||
+        defaultRaw == 'true';
+
     final address = Address(
-      id: json['id'] ?? 0,
-      name: json['name'] ?? json['title'] ?? 'Адрес',
-      address: fullAddress,
-      city: json['city'] ?? '',
-      region: json['state'] ?? json['region'], // API использует 'state' вместо 'region'
-      postalCode: json['zip'] ?? json['postal_code'] ?? json['postalCode'], // API использует 'zip'
-      phone: json['phone'],
-      country: json['country'] as String?, // Код страны из 2 символов
-      userAddressId: json['user_address_id'] as int? ?? json['id'] as int?, // Реальный user_address_id из базы данных
-      isDefault: json['default'] == 1 || json['is_default'] == true || json['isDefault'] == true, // API использует числовое значение
-      type: json['type'] ?? 'delivery', // По умолчанию delivery для адресов с сайта
+      id: id,
+      name: (json['name'] ?? json['title'] ?? 'Адрес').toString(),
+      address: fullAddress.toString(),
+      city: (json['city'] ?? '').toString(),
+      region: json['state']?.toString() ?? json['region']?.toString(),
+      postalCode: json['zip']?.toString() ??
+          json['postal_code']?.toString() ??
+          json['postalCode']?.toString(),
+      phone: json['phone']?.toString(),
+      country: json['country']?.toString(),
+      userAddressId: userAddressId > 0 ? userAddressId : (id > 0 ? id : null),
+      isDefault: isDefault,
+      type: (json['type'] ?? 'delivery').toString(),
     );
     
     print('[DEBUG] Address.fromJson: Создан адрес: ${address.name} (${address.type}) - ${address.fullAddress}');

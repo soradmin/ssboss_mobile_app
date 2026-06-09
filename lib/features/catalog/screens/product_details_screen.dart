@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -17,7 +19,9 @@ import '../repo/catalog_api.dart';
 import '../../../core/result.dart';
 import '../models/media.dart';
 import '../widgets/product_price_row.dart';
+import '../widgets/product_grid_card.dart';
 import '../../favorites/repo/favorites_api.dart';
+import '../../personalization/user_preference_service.dart';
 import 'package:share_plus/share_plus.dart';
 
 class ProductDetailsScreen extends ConsumerStatefulWidget {
@@ -57,6 +61,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
     // Подтягиваем полные данные (галерея + привязка фото к вариантам)
     _applyDefaultAttributeSelections(widget.p);
     _loadDetails();
+    unawaited(UserPreferenceService.instance.recordView(widget.p));
     super.initState();
   }
 
@@ -115,6 +120,11 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
         final result = await favoritesApi.addToFavorites(widget.p.id);
         result.when(
           ok: (_) {
+            unawaited(
+              UserPreferenceService.instance.recordFavorite(
+                _currentProduct ?? widget.p,
+              ),
+            );
             setState(() {
               _isFavorite = true;
               _isLoadingFavorite = false;
@@ -874,147 +884,16 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
             ),
           ],
           
-          // Кнопка "О товаре"
-          if (((_currentProduct ?? widget.p).description != null && 
-              (_currentProduct ?? widget.p).description!.isNotEmpty) ||
-              (_currentProduct ?? widget.p).descriptionImages.isNotEmpty) ...[
+          // Краткое описание + ссылка «о товаре» (как на WB)
+          const SizedBox(height: 12),
+          _buildProductAboutPreview(context, _currentProduct ?? widget.p),
+
+          // Продавец + избранное (как на WB)
+          if ((_currentProduct ?? widget.p).sellerName != null &&
+              (_currentProduct ?? widget.p).sellerName!.isNotEmpty) ...[
             const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton(
-                onPressed: () {
-                  _showProductInfoModal(context);
-                },
-                style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: Color(0xFFC94F4F), width: 2),
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                child: const Text(
-                  'О товаре',
-                  style: TextStyle(
-                    color: Color(0xFFC94F4F),
-                    fontWeight: FontWeight.w600,
-                    fontSize: 16,
-                  ),
-                ),
-              ),
-            ),
+            _buildSellerRow(context, _currentProduct ?? widget.p),
           ],
-          
-          // Информация о продавце (магазине) - под кнопкой "О товаре"
-          Builder(
-            builder: (context) {
-              final product = _currentProduct ?? widget.p;
-              print('[DEBUG SELLER] Проверяем информацию о продавце:');
-              print('[DEBUG SELLER] sellerName: ${product.sellerName}');
-              print('[DEBUG SELLER] sellerRating: ${product.sellerRating}');
-              print('[DEBUG SELLER] storeSlug: ${product.storeSlug}');
-              print('[DEBUG SELLER] Условие отображения: ${product.sellerName != null && product.sellerName!.isNotEmpty}');
-              return const SizedBox.shrink();
-            },
-          ),
-          Builder(
-            builder: (context) {
-              final product = _currentProduct ?? widget.p;
-              if (product.sellerName != null && product.sellerName!.isNotEmpty) {
-                return Column(
-                  children: [
-                    const SizedBox(height: 16),
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.grey[100],
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(
-                            Icons.store,
-                            size: 20,
-                            color: Colors.black87,
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                GestureDetector(
-                                  onTap: () {
-                                    // Получаем slug магазина или преобразуем sellerName в slug
-                                    String? slug = product.storeSlug;
-                                    if (slug == null || slug.isEmpty) {
-                                      // Преобразуем sellerName в slug
-                                      slug = product.sellerName!
-                                          .toLowerCase()
-                                          .replaceAll(RegExp(r'[^\w\s-]'), '')
-                                          .replaceAll(RegExp(r'[\s_-]+'), '-')
-                                          .trim();
-                                    }
-                                    
-                                    if (slug.isNotEmpty) {
-                                      context.push('/store/$slug');
-                                    } else {
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        const SnackBar(
-                                          content: Text('Информация о магазине недоступна'),
-                                          duration: Duration(seconds: 2),
-                                        ),
-                                      );
-                                    }
-                                  },
-                                  child: Text(
-                                    product.sellerName!,
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w600,
-                                      color: Theme.of(context).primaryColor,
-                                      decoration: TextDecoration.underline,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Row(
-                                  children: [
-                                    const Text(
-                                      'Продавец',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: Colors.grey,
-                                      ),
-                                    ),
-                                    if (product.sellerRating != null && product.sellerRating! > 0) ...[
-                                      const SizedBox(width: 8),
-                                      const Icon(
-                                        Icons.star,
-                                        size: 14,
-                                        color: Colors.amber,
-                                      ),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        product.sellerRating!.toStringAsFixed(1),
-                                        style: const TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                    ],
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                );
-              }
-              return const SizedBox.shrink();
-            },
-          ),
           
           // Секции с рекомендуемыми товарами и товарами "смотрели также"
           const SizedBox(height: 24),
@@ -1272,6 +1151,173 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
     );
   }
 
+  static const Color _wbAccent = Color(0xFF8813BA);
+
+  String _plainText(String? raw) {
+    if (raw == null || raw.trim().isEmpty) return '';
+    return raw
+        .replaceAll(RegExp(r'<[^>]*>'), ' ')
+        .replaceAll(RegExp(r'&nbsp;'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+  }
+
+  String _shortProductPreview(Product product, {int maxLen = 140}) {
+    final desc = _plainText(product.description);
+    if (desc.isNotEmpty) {
+      if (desc.length <= maxLen) return desc;
+      return '${desc.substring(0, maxLen).trim()}…';
+    }
+    if (product.attributes.isNotEmpty) {
+      final parts = product.attributes
+          .take(4)
+          .map((a) {
+            final values = a.values.map((v) => v.title).where((t) => t.isNotEmpty);
+            if (values.isEmpty) return a.title;
+            return '${a.title}: ${values.join(', ')}';
+          })
+          .where((s) => s.isNotEmpty)
+          .toList();
+      final joined = parts.join(' · ');
+      if (joined.length <= maxLen) return joined;
+      return '${joined.substring(0, maxLen).trim()}…';
+    }
+    return '';
+  }
+
+  Widget _buildProductAboutPreview(BuildContext context, Product product) {
+    final preview = _shortProductPreview(product);
+    const previewStyle = TextStyle(
+      fontSize: 14,
+      height: 1.45,
+      color: Color(0xFF4A5568),
+    );
+    const linkStyle = TextStyle(
+      fontSize: 14,
+      height: 1.45,
+      color: _wbAccent,
+      fontWeight: FontWeight.w500,
+    );
+
+    return Text.rich(
+      TextSpan(
+        style: previewStyle,
+        children: [
+          if (preview.isNotEmpty) TextSpan(text: '$preview '),
+          WidgetSpan(
+            alignment: PlaceholderAlignment.baseline,
+            baseline: TextBaseline.alphabetic,
+            child: GestureDetector(
+              onTap: () => _showProductInfoModal(context),
+              child: const Text('о товаре', style: linkStyle),
+            ),
+          ),
+        ],
+      ),
+      maxLines: 4,
+      overflow: TextOverflow.ellipsis,
+    );
+  }
+
+  void _openSellerStore(BuildContext context, Product product) {
+    String? slug = product.storeSlug;
+    if (slug == null || slug.isEmpty) {
+      slug = product.sellerName!
+          .toLowerCase()
+          .replaceAll(RegExp(r'[^\w\s-]'), '')
+          .replaceAll(RegExp(r'[\s_-]+'), '-')
+          .trim();
+    }
+    if (slug.isNotEmpty) {
+      context.push('/store/$slug');
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Информация о магазине недоступна'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
+  Widget _buildSellerRow(BuildContext context, Product product) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Expanded(
+          child: GestureDetector(
+            onTap: () => _openSellerStore(context, product),
+            behavior: HitTestBehavior.opaque,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  product.sellerName!,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Row(
+                  children: [
+                    Text(
+                      'Продавец',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                    if (product.sellerRating != null && product.sellerRating! > 0) ...[
+                      const SizedBox(width: 6),
+                      Icon(Icons.star, size: 14, color: Colors.orange[700]),
+                      const SizedBox(width: 2),
+                      Text(
+                        product.sellerRating!.toStringAsFixed(1).replaceAll('.', ','),
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey[700],
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: _toggleFavorite,
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: Colors.grey[100],
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: _isLoadingFavorite
+                  ? const Padding(
+                      padding: EdgeInsets.all(12),
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Icon(
+                      _isFavorite ? Icons.favorite : Icons.favorite_border,
+                      color: _isFavorite ? Colors.red : Colors.black87,
+                      size: 22,
+                    ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   // Метод для правильного склонения слова "оценка"
   String _getReviewCountText(int count) {
     if (count % 10 == 1 && count % 100 != 11) {
@@ -1286,11 +1332,15 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
   // Показать модальное окно с информацией о товаре
   void _showProductInfoModal(BuildContext context) {
     final product = _currentProduct ?? widget.p;
+    final messenger = ScaffoldMessenger.of(context);
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => _ProductInfoModal(product: product),
+      builder: (context) => _ProductInfoModal(
+        product: product,
+        messenger: messenger,
+      ),
     );
   }
 
@@ -1415,7 +1465,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
         ),
         const SizedBox(height: 12),
         SizedBox(
-          height: 280,
+          height: 300,
           child: isLoading
               ? const Center(child: CircularProgressIndicator())
               : products.isEmpty
@@ -1436,9 +1486,14 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                       itemCount: products.length,
                       itemBuilder: (context, index) {
                         final product = products[index];
-                        return SizedBox(
-                          width: 160,
-                          child: _buildRecommendedProductCard(product),
+                        return Padding(
+                          padding: EdgeInsets.only(
+                            right: index < products.length - 1 ? 12 : 0,
+                          ),
+                          child: SizedBox(
+                            width: 160,
+                            child: ProductGridCard(product: product),
+                          ),
                         );
                       },
                     ),
@@ -1446,275 +1501,17 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
       ],
     );
   }
-
-  Widget _buildRecommendedProductCard(Product product) {
-    // Проверяем валидность товара перед навигацией
-    if (product.id <= 0) {
-      print('[ERROR] Некорректный ID товара: ${product.id}');
-      return Card(
-        elevation: 2,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-        margin: const EdgeInsets.only(right: 8),
-        child: const Center(
-          child: Padding(
-            padding: EdgeInsets.all(16),
-            child: Text(
-              'Неверные данные товара',
-              style: TextStyle(color: Colors.red, fontSize: 10),
-            ),
-          ),
-        ),
-      );
-    }
-    
-    return Consumer(
-      builder: (context, ref, child) {
-        final cartItems = ref.watch(cartProvider);
-        int qtyInCart = 0;
-        for (final item in cartItems) {
-          if (item.product.id == product.id) {
-            qtyInCart = item.qty;
-            break;
-          }
-        }
-        
-        final purple = Theme.of(context).primaryColor;
-        
-        return GestureDetector(
-          onTap: () {
-            print('[DEBUG] Переход к товару: ID=${product.id}, name=${product.name}');
-            context.push('/product/${product.id}', extra: product);
-          },
-          child: Card(
-            elevation: 2,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            margin: const EdgeInsets.only(right: 8),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Изображение товара
-                Expanded(
-                  flex: 3,
-                  child: Stack(
-                    children: [
-                      ClipRRect(
-                        borderRadius: const BorderRadius.vertical(
-                          top: Radius.circular(12),
-                        ),
-                        child: CachedNetworkImage(
-                          imageUrl: AppConfig.imageUrl(product.image),
-                          fit: BoxFit.cover,
-                          width: double.infinity,
-                          height: double.infinity,
-                          memCacheHeight: 220,
-                          memCacheWidth: 220,
-                          maxHeightDiskCache: 220,
-                          maxWidthDiskCache: 220,
-                          placeholder: (context, url) => Container(
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [
-                                  const Color(0xFF6A1B9A).withOpacity(0.1),
-                                  const Color(0xFF9C27B0).withOpacity(0.1),
-                                ],
-                              ),
-                            ),
-                            child: const Center(
-                              child: Icon(
-                                Icons.image_outlined,
-                                color: Color(0xFF6A1B9A),
-                                size: 48,
-                              ),
-                            ),
-                          ),
-                          errorWidget: (context, url, error) => Container(
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [
-                                  const Color(0xFF6A1B9A).withOpacity(0.1),
-                                  const Color(0xFF9C27B0).withOpacity(0.1),
-                                ],
-                              ),
-                            ),
-                            child: const Center(
-                              child: Icon(
-                                Icons.image_outlined,
-                                color: Color(0xFF6A1B9A),
-                                size: 48,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      if (product.badge != null && product.badge!.isNotEmpty)
-                        Positioned(
-                          top: 6,
-                          left: 6,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 3,
-                            ),
-                            decoration: BoxDecoration(
-                              color: purple,
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text(
-                              product.badge!,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 9,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ),
-                      // Кнопка корзины
-                      Positioned(
-                        right: 8,
-                        bottom: 8,
-                        child: GestureDetector(
-                          onTap: () async {
-                            await ref.read(cartProvider.notifier).addToCartWithSync(product, 1);
-                            if (mounted) {
-                              ScaffoldMessenger.of(context).hideCurrentSnackBar();
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Товар добавлен в корзину'),
-                                  duration: Duration(milliseconds: 900),
-                                ),
-                              );
-                            }
-                          },
-                          child: Stack(
-                            clipBehavior: Clip.none,
-                            children: [
-                              Container(
-                                width: 40,
-                                height: 40,
-                                decoration: BoxDecoration(
-                                  color: purple,
-                                  shape: BoxShape.circle,
-                                  boxShadow: const [
-                                    BoxShadow(
-                                      color: Color(0x33000000),
-                                      blurRadius: 8,
-                                      offset: Offset(0, 4),
-                                    ),
-                                  ],
-                                ),
-                                child: const Icon(
-                                  Icons.shopping_cart_outlined,
-                                  color: Colors.white,
-                                  size: 20,
-                                ),
-                              ),
-                              if (qtyInCart > 0)
-                                Positioned(
-                                  top: -4,
-                                  right: -4,
-                                  child: Container(
-                                    width: 18,
-                                    height: 18,
-                                    alignment: Alignment.center,
-                                    decoration: BoxDecoration(
-                                      color: Colors.redAccent,
-                                      borderRadius: BorderRadius.circular(9),
-                                      border: Border.all(color: Colors.white, width: 2),
-                                    ),
-                                    child: Text(
-                                      qtyInCart > 9 ? '9+' : '$qtyInCart',
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 9,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                // Цена (сразу после изображения)
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  child: ProductPriceRow.fromProduct(
-                    product,
-                    priceFontSize: 18,
-                  ),
-                ),
-                // Информация о товаре
-                Flexible(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(8, 2, 8, 2),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          product.name,
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w500,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        if (product.rating > 0)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 2),
-                            child: Row(
-                              children: [
-                                const Icon(
-                                  Icons.star,
-                                  size: 11,
-                                  color: Colors.amber,
-                                ),
-                                const SizedBox(width: 2),
-                                Text(
-                                  product.rating.toStringAsFixed(1),
-                                  style: const TextStyle(fontSize: 9),
-                                ),
-                                if (product.reviewCount > 0) ...[
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    '(${product.reviewCount})',
-                                    style: TextStyle(
-                                      fontSize: 9,
-                                      color: Colors.grey[600],
-                                    ),
-                                  ),
-                                ],
-                              ],
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
 }
 
 // Модальное окно с информацией о товаре
 class _ProductInfoModal extends StatefulWidget {
   final Product product;
+  final ScaffoldMessengerState messenger;
 
-  const _ProductInfoModal({required this.product});
+  const _ProductInfoModal({
+    required this.product,
+    required this.messenger,
+  });
 
   @override
   State<_ProductInfoModal> createState() => _ProductInfoModalState();
@@ -1975,14 +1772,13 @@ class _ProductInfoModalState extends State<_ProductInfoModal> with SingleTickerP
                     constraints: const BoxConstraints(),
                     onPressed: () async {
                       await Clipboard.setData(ClipboardData(text: value));
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Артикул скопирован'),
-                            duration: Duration(seconds: 2),
-                          ),
-                        );
-                      }
+                      widget.messenger.showSnackBar(
+                        const SnackBar(
+                          content: Text('Артикул скопирован'),
+                          duration: Duration(seconds: 2),
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
                     },
                   ),
               ],

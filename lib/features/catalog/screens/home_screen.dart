@@ -21,6 +21,8 @@ import '../models/brand.dart';
 import '../models/home_page_data.dart';
 import '../models/flash_sale.dart';
 import '../widgets/product_grid_card.dart';
+import '../providers/content_cache.dart';
+import '../../personalization/user_preference_service.dart';
 import '../../../core/result.dart';         // Ok/Err
 import '../../cart/repo/cart_api.dart';    // серверная корзина
 import '../../../core/config.dart';        // AppConfig
@@ -126,6 +128,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   List<Product> _newProducts = const []; // Новинки (последние опубликованные)
   List<Product> _recommendedProducts = const []; // Рекомендуемые (collection=1)
   List<Product> _trendingProducts = const []; // Тренды (collection=2)
+  List<Product> _discountedProducts = const []; // Товары со скидкой (offered < selling)
   List<SliderItem> _sliders = const [];
   HomePageData? _homePageData;
   List<Brand> _brands = [];
@@ -136,7 +139,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   bool _tabLoading = false; // Загрузка при переключении вкладок
   int _currentPage = 1;
   Map<String, dynamic>? _profileData;
-  static const int _itemsPerPage = 50; // Увеличиваем количество товаров
+  static const int _itemsPerPage = 50;
+  /// Первая страница (~50 товаров) — быстрый старт; полный каталог грузится в категориях.
+  static const int _homeProductsMaxPages = 1;
   final TextEditingController _searchController = TextEditingController();
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
@@ -159,7 +164,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       end: Offset.zero,
     ).animate(CurvedAnimation(parent: _animationController, curve: Curves.easeOut));
     
-    _load();
+    final cache = HomeContentCache.instance;
+    if (cache.hasData) {
+      unawaited(_applyHomeCache(cache));
+      if (cache.isStale) {
+        unawaited(_load(showLoading: false));
+      }
+    } else {
+      _load(showLoading: true);
+    }
     _loadProfile();
     _animationController.forward();
     
@@ -187,7 +200,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       
       // Обновляем данные параллельно
       final futures = [
-        _load(),
+        _load(showLoading: false, force: true),
         _loadProfile(),
         ref.read(cartProvider.notifier).syncWithServer(),
       ];
@@ -221,12 +234,40 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     }
   }
 
-  Future<void> _load() async {
-    setState(() => _loading = true);
+  Future<void> _applyHomeCache(HomeContentCache cache) async {
+    final profile = await UserPreferenceService.instance.loadProfile();
+    final personalized = UserPreferenceService.personalizeProducts(
+      cache.newProducts,
+      profile,
+    );
+    if (!mounted) return;
+    setState(() {
+      _newProducts = personalized;
+      _products = personalized;
+      _recommendedProducts = cache.recommendedProducts;
+      _trendingProducts = cache.trendingProducts;
+      _discountedProducts = cache.discountedProducts;
+      _sliders = cache.sliders;
+      _homePageData = cache.homePageData;
+      _brands = cache.brands;
+      _flashSales = cache.flashSales;
+      _loading = false;
+      _slidersLoading = false;
+    });
+  }
+
+  Future<void> _load({bool showLoading = true, bool force = false}) async {
+    final cache = HomeContentCache.instance;
+    if (!force && cache.hasData && !cache.isStale) return;
+
+    final showSkeleton = showLoading && !cache.hasData;
+    if (showSkeleton) {
+      setState(() => _loading = true);
+    }
     
     try {
-    // Загружаем товары со всех страниц, слайдеры, данные главной страницы, бренды и Flash Sale параллельно
-    final productsFuture = _loadAllProducts(); // Для вкладки "Новинки"
+    // Слайдеры, главная, бренды, Flash Sale и первая страница товаров (Новинки)
+    final productsFuture = _loadAllProducts(maxPages: _homeProductsMaxPages);
     final slidersFuture = _api.getSliders();
     final homePageDataFuture = _api.getHomePageData();
     final brandsFuture = _api.getBrands(page: 1);
@@ -239,14 +280,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     final flashSaleRes = await flashSaleFuture;
     
     if (productsRes is Ok<List<Product>>) {
-        // Загружаем все товары для вкладки "Новинки" (последние опубликованные)
-        final allProducts = productsRes.value;
+        final profile = await UserPreferenceService.instance.loadProfile();
+        final allProducts = UserPreferenceService.personalizeProducts(
+          productsRes.value,
+          profile,
+        );
         setState(() {
-          _newProducts = allProducts; // Сохраняем как новинки
-          _products = allProducts; // Для обратной совместимости
+          _newProducts = allProducts;
+          _products = allProducts;
           print('[DEBUG] _load: Установлено _newProducts = ${_newProducts.length} товаров');
         });
-        print('[DEBUG] Загружено ${allProducts.length} товаров со всех страниц (Новинки)');
+        print(
+          '[DEBUG] Загружено ${allProducts.length} товаров (Новинки), '
+          'персонализация: ${profile.hasEnoughData}',
+        );
     } else {
       final msg = (productsRes as Err).message;
       print('[DEBUG] _load: Ошибка загрузки товаров: $msg');
@@ -308,6 +355,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     }
     
     if (mounted) {
+      HomeContentCache.instance.save(
+        newProducts: _newProducts,
+        sliders: _sliders,
+        homePageData: _homePageData,
+        brands: _brands,
+        flashSales: _flashSales,
+      );
+      HomeContentCache.instance.saveTabProducts(
+        recommended: _recommendedProducts,
+        trending: _trendingProducts,
+        discounted: _discountedProducts,
+      );
       setState(() {
         _loading = false;
         _slidersLoading = false;
@@ -316,8 +375,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     }
   }
 
-  // Загрузка всех товаров со всех страниц (для вкладки "Новинки")
-  Future<Result<List<Product>>> _loadAllProducts() async {
+  // Загрузка товаров постранично (для вкладки «Новинки»)
+  Future<Result<List<Product>>> _loadAllProducts({int maxPages = 1}) async {
     List<Product> allProducts = [];
     int page = 1;
     bool hasMorePages = true;
@@ -340,9 +399,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           allProducts.addAll(products);
           page++;
           
-          // Ограничиваем количество страниц для предотвращения бесконечного цикла
-          if (page > 10) {
-            print('[DEBUG] _loadAllProducts: Достигнуто максимальное количество страниц (10), завершаем загрузку');
+          if (page > maxPages) {
+            print('[DEBUG] _loadAllProducts: Достигнут лимит страниц ($maxPages)');
             hasMorePages = false;
           }
         }
@@ -361,73 +419,140 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     print('[DEBUG] Загрузка новинок...');
     final result = await _loadAllProducts();
     if (result is Ok<List<Product>>) {
+      final profile = await UserPreferenceService.instance.loadProfile();
       setState(() {
-        _newProducts = result.value;
+        _newProducts = UserPreferenceService.personalizeProducts(
+          result.value,
+          profile,
+        );
       });
     }
   }
 
-  // Загрузка рекомендуемых товаров (collection=1)
+  /// Товары из коллекции на сайте (как блоки на главной веб-страницы).
+  Future<List<Product>> _loadProductsByCollection(
+    String collectionId, {
+    List<String> titleKeywords = const [],
+  }) async {
+    final fromHome = await _api.getHomeCollectionProducts(
+      collectionId: collectionId,
+      titleKeywords: titleKeywords,
+    );
+    if (fromHome is Ok<List<Product>> && fromHome.value.isNotEmpty) {
+      return fromHome.value;
+    }
+
+    final allProducts = <Product>[];
+    var page = 1;
+    var hasMorePages = true;
+
+    while (hasMorePages && page <= 10) {
+      final result = await _api.products(page: page, collection: collectionId);
+      if (result is Ok<List<Product>>) {
+        final products = result.value;
+        if (products.isEmpty) {
+          hasMorePages = false;
+        } else {
+          allProducts.addAll(products);
+          page++;
+        }
+      } else {
+        print(
+          '[DEBUG] _loadProductsByCollection($collectionId) стр.$page: '
+          '${(result as Err).message}',
+        );
+        hasMorePages = false;
+      }
+    }
+    return allProducts;
+  }
+
+  // Загрузка рекомендуемых товаров (коллекция id=1, как на вебе)
   Future<void> _loadRecommendedProducts() async {
     print('[DEBUG] Загрузка рекомендуемых товаров (collection=1)...');
     try {
-      List<Product> allProducts = [];
-      int page = 1;
-      bool hasMorePages = true;
-      
-      while (hasMorePages && page <= 10) {
-        final result = await _api.products(page: page, category: '1');
-        if (result is Ok<List<Product>>) {
-          final products = result.value;
-          if (products.isEmpty) {
-            hasMorePages = false;
-          } else {
-            allProducts.addAll(products);
-            page++;
-          }
-        } else {
-          hasMorePages = false;
-        }
-      }
-      
+      final allProducts = await _loadProductsByCollection(
+        '1',
+        titleKeywords: const ['рекомен', 'featured', 'popular', 'популяр'],
+      );
       setState(() {
         _recommendedProducts = allProducts;
       });
+      HomeContentCache.instance.saveTabProducts(recommended: allProducts);
       print('[DEBUG] Загружено ${allProducts.length} рекомендуемых товаров');
     } catch (e) {
       print('[ERROR] Ошибка загрузки рекомендуемых товаров: $e');
     }
   }
 
-  // Загрузка трендовых товаров (collection=2)
+  // Загрузка трендовых товаров (коллекция id=2 — «Трендовые товары» на вебе)
   Future<void> _loadTrendingProducts() async {
     print('[DEBUG] Загрузка трендовых товаров (collection=2)...');
     try {
-      List<Product> allProducts = [];
-      int page = 1;
-      bool hasMorePages = true;
-      
-      while (hasMorePages && page <= 10) {
-        final result = await _api.products(page: page, category: '2');
-        if (result is Ok<List<Product>>) {
-          final products = result.value;
-          if (products.isEmpty) {
-            hasMorePages = false;
-          } else {
-            allProducts.addAll(products);
-            page++;
-          }
-        } else {
-          hasMorePages = false;
-        }
-      }
-      
+      final allProducts = await _loadProductsByCollection(
+        '2',
+        titleKeywords: const ['тренд', 'trend', 'trending'],
+      );
       setState(() {
         _trendingProducts = allProducts;
       });
+      HomeContentCache.instance.saveTabProducts(trending: allProducts);
       print('[DEBUG] Загружено ${allProducts.length} трендовых товаров');
     } catch (e) {
       print('[ERROR] Ошибка загрузки трендовых товаров: $e');
+    }
+  }
+
+  /// Товары с перечёркнутой старой ценой (поля selling / offered с API).
+  Future<void> _loadDiscountedProducts() async {
+    print('[DEBUG] Загрузка товаров со скидкой...');
+    try {
+      if (_flashSales.isEmpty) {
+        await _loadFlashSale();
+      }
+
+      final seen = <int>{};
+      final discounted = <Product>[];
+
+      for (final sale in _flashSales) {
+        for (final item in sale.products) {
+          final p = item.productData;
+          if (p.hasDiscount && seen.add(p.id)) {
+            discounted.add(p);
+          }
+        }
+      }
+
+      var page = 1;
+      var hasMore = true;
+      while (hasMore && page <= 15) {
+        final result = await _api.products(page: page);
+        if (result is Ok<List<Product>>) {
+          final batch = result.value;
+          if (batch.isEmpty) {
+            hasMore = false;
+          } else {
+            for (final p in batch) {
+              if (p.hasDiscount && seen.add(p.id)) {
+                discounted.add(p);
+              }
+            }
+            page++;
+          }
+        } else {
+          hasMore = false;
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          _discountedProducts = discounted;
+        });
+        HomeContentCache.instance.saveTabProducts(discounted: discounted);
+      }
+      print('[DEBUG] Загружено ${discounted.length} товаров со скидкой');
+    } catch (e) {
+      print('[ERROR] Ошибка загрузки товаров со скидкой: $e');
     }
   }
 
@@ -456,6 +581,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   void _performSearch() {
     final query = _searchController.text.trim();
     if (query.isNotEmpty) {
+      unawaited(UserPreferenceService.instance.recordSearch(query));
       context.go('/catalog/products?search=$query');
     }
   }
@@ -880,13 +1006,31 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     );
   }
 
+  /// Размеры баннера/слайдера с учётом плотности экрана (чёткие изображения на Retina).
+  ({double width, double height, int cacheWidth, int cacheHeight}) _bannerImageLayout(
+    BuildContext context, {
+    double horizontalPadding = 32,
+    double widthToHeight = 2, // 1000×500, как на сайте
+  }) {
+    final layoutWidth = MediaQuery.sizeOf(context).width - horizontalPadding;
+    final layoutHeight = layoutWidth / widthToHeight;
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    return (
+      width: layoutWidth,
+      height: layoutHeight,
+      cacheWidth: (layoutWidth * dpr).round(),
+      cacheHeight: (layoutHeight * dpr).round(),
+    );
+  }
+
   // Универсальный метод для отображения баннера с одинаковым размером
   Widget _buildStandardBanner(String imageUrl, {VoidCallback? onTap}) {
+    final layout = _bannerImageLayout(context);
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        width: double.infinity, // Ширина как у поисковой строки
-        height: 200, // Фиксированная высота для всех баннеров
+        width: double.infinity,
+        height: layout.height,
         margin: const EdgeInsets.only(bottom: 20),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
@@ -903,15 +1047,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           child: CachedNetworkImage(
             imageUrl: AppConfig.imageUrl(imageUrl),
             fit: BoxFit.cover,
+            filterQuality: FilterQuality.high,
             width: double.infinity,
-            height: 200,
-            memCacheHeight: 200,
-            memCacheWidth: 800,
-            maxHeightDiskCache: 200,
-            maxWidthDiskCache: 800,
+            height: layout.height,
+            memCacheHeight: layout.cacheHeight,
+            memCacheWidth: layout.cacheWidth,
             placeholder: (context, url) => Container(
               width: double.infinity,
-              height: 200,
+              height: layout.height,
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: [
@@ -928,7 +1071,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             ),
             errorWidget: (context, url, error) => Container(
               width: double.infinity,
-              height: 200,
+              height: layout.height,
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: [
@@ -962,8 +1105,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     const mediumBannerAspectRatio = 1000 / 500;
     final bannerHeight = bannerWidth / mediumBannerAspectRatio;
     
-    final cacheWidth = (bannerWidth * 2).round();
-    final cacheHeight = (bannerHeight * 2).round();
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    final cacheWidth = (bannerWidth * dpr).round();
+    final cacheHeight = (bannerHeight * dpr).round();
     
     return Container(
       margin: EdgeInsets.zero, // Убираем отступ снизу баннера
@@ -1000,12 +1144,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 child: CachedNetworkImage(
                   imageUrl: AppConfig.imageUrl(banner.image),
                   fit: BoxFit.contain,
+                  filterQuality: FilterQuality.high,
                   width: bannerWidth,
                   height: bannerHeight,
                   memCacheHeight: cacheHeight,
                   memCacheWidth: cacheWidth,
-                  maxHeightDiskCache: cacheHeight,
-                  maxWidthDiskCache: cacheWidth,
                   alignment: Alignment.center,
                   placeholder: (context, url) => Container(
                     width: bannerWidth,
@@ -1246,8 +1389,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     final bannerHeight = (bannerWidth * 800 / 1600);
     
     // Размеры кэша для адаптивной вырезки (как в других баннерах)
-    final cacheWidth = (bannerWidth * 2).round();
-    final cacheHeight = (bannerHeight * 2).round();
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    final cacheWidth = (bannerWidth * dpr).round();
+    final cacheHeight = (bannerHeight * dpr).round();
     
     return GestureDetector(
       onTap: () {
@@ -1283,8 +1427,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             // Адаптивные размеры кэша для разных устройств
             memCacheHeight: cacheHeight,
             memCacheWidth: cacheWidth,
-            maxHeightDiskCache: cacheHeight,
-            maxWidthDiskCache: cacheWidth,
+            filterQuality: FilterQuality.high,
             alignment: Alignment.center, // Центрируем вырезку
             placeholder: (context, url) => Container(
               width: bannerWidth,
@@ -1331,6 +1474,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   // Промо баннер (главный слайдер)
   Widget _buildPromoBanner() {
     if (_sliders.isEmpty) return const SizedBox.shrink();
+
+    final layout = _bannerImageLayout(context);
     
     return Container(
       margin: const EdgeInsets.only(bottom: 20),
@@ -1346,8 +1491,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               }
             },
             child: Container(
-              width: double.infinity, // Ширина как у поисковой строки
-              height: 200, // Фиксированная высота
+              width: double.infinity,
+              height: layout.height,
               margin: EdgeInsets.zero,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(16),
@@ -1364,15 +1509,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 child: CachedNetworkImage(
                   imageUrl: AppConfig.imageUrl(slider.image),
                   fit: BoxFit.cover,
+                  filterQuality: FilterQuality.high,
                   width: double.infinity,
-                  height: 200,
-                  memCacheHeight: 200,
-                  memCacheWidth: 800,
-                  maxHeightDiskCache: 200,
-                  maxWidthDiskCache: 800,
+                  height: layout.height,
+                  memCacheHeight: layout.cacheHeight,
+                  memCacheWidth: layout.cacheWidth,
                   placeholder: (context, url) => Container(
                     width: double.infinity,
-                    height: 200,
+                    height: layout.height,
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         colors: [
@@ -1389,7 +1533,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                   ),
                   errorWidget: (context, url, error) => Container(
                     width: double.infinity,
-                    height: 200,
+                    height: layout.height,
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         colors: [
@@ -1412,7 +1556,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           );
         },
         options: CarouselOptions(
-          height: 200, // Одинаковая высота для всех баннеров
+          height: layout.height,
           autoPlay: true,
           autoPlayInterval: const Duration(seconds: 4),
           autoPlayAnimationDuration: const Duration(milliseconds: 1000),
@@ -2003,36 +2147,56 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
   // Обработка переключения вкладок
   Future<void> _onTabChanged(String tab) async {
-    if (_selectedTab == tab) return; // Если та же вкладка, ничего не делаем
-    
+    if (_selectedTab == tab) return;
+
+    final cache = HomeContentCache.instance;
+    var needsNetwork = false;
+    switch (tab) {
+      case 'Новинки':
+        needsNetwork = _newProducts.isEmpty;
+        break;
+      case 'Скидки':
+        if (_discountedProducts.isEmpty && cache.discountedProducts.isNotEmpty) {
+          _discountedProducts = List<Product>.from(cache.discountedProducts);
+        }
+        needsNetwork = _discountedProducts.isEmpty;
+        break;
+      case 'Рекомендуемые':
+        if (_recommendedProducts.isEmpty && cache.recommendedProducts.isNotEmpty) {
+          _recommendedProducts = List<Product>.from(cache.recommendedProducts);
+        }
+        needsNetwork = _recommendedProducts.isEmpty;
+        break;
+      case 'Тренды':
+        if (_trendingProducts.isEmpty && cache.trendingProducts.isNotEmpty) {
+          _trendingProducts = List<Product>.from(cache.trendingProducts);
+        }
+        needsNetwork = _trendingProducts.isEmpty;
+        break;
+    }
+
     setState(() {
       _selectedTab = tab;
-      _tabLoading = true;
+      _tabLoading = needsNetwork;
     });
+
+    if (!needsNetwork) return;
 
     try {
       switch (tab) {
         case 'Новинки':
-          // Используем уже загруженные товары или загружаем заново
           if (_newProducts.isEmpty) {
             await _loadNewProducts();
           }
           break;
         case 'Скидки':
-          // Flash Sale уже загружается в _load()
-          if (_flashSales.isEmpty) {
-            await _loadFlashSale();
-          }
+          await _loadDiscountedProducts();
           break;
         case 'Рекомендуемые':
-          if (_recommendedProducts.isEmpty) {
-            await _loadRecommendedProducts();
-          }
+          await _loadRecommendedProducts();
           break;
         case 'Тренды':
-          if (_trendingProducts.isEmpty) {
-            await _loadTrendingProducts();
-          }
+          await _loadTrendingProducts();
           break;
       }
     } catch (e) {
@@ -2077,23 +2241,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         productsToShow = _newProducts;
         break;
       case 'Скидки':
-        // Для Flash Sale показываем блоки с акциями
-        if (_flashSales.isEmpty) {
-          return Center(
-            child: Padding(
-              padding: EdgeInsets.symmetric(vertical: loaderPadding),
-              child: const Text(
-                'Нет активных скидок',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Color(0xFF718096),
-                ),
-              ),
-            ),
-          );
-        }
-        // Возвращаем специальный виджет для отображения блоков акций
-        return _buildFlashSalesBlocks();
+        productsToShow = _discountedProducts;
+        break;
       case 'Рекомендуемые':
         productsToShow = _recommendedProducts;
         break;
@@ -2111,7 +2260,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       crossAxisCount = 3;
     }
 
-    if (_loading && productsToShow.isEmpty) {
+    if (_loading && productsToShow.isEmpty && !HomeContentCache.instance.hasData) {
       final skeletonCount = crossAxisCount * 4;
       return GridView.builder(
         physics: const NeverScrollableScrollPhysics(),
@@ -2128,12 +2277,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     }
 
     if (productsToShow.isEmpty) {
+      final emptyMessage = switch (_selectedTab) {
+        'Скидки' => 'Нет товаров со скидкой',
+        'Тренды' => 'Нет трендовых товаров',
+        'Рекомендуемые' => 'Нет рекомендуемых товаров',
+        _ => 'Товары не найдены',
+      };
       return Center(
         child: Padding(
           padding: EdgeInsets.symmetric(vertical: loaderPadding),
-          child: const Text(
-            'Товары не найдены',
-            style: TextStyle(
+          child: Text(
+            emptyMessage,
+            style: const TextStyle(
               fontSize: 16,
               color: Color(0xFF718096),
             ),

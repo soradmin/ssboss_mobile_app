@@ -82,4 +82,16 @@ class Order extends Model
             ->selectRaw('ordered_products.order_id, SUM(ordered_products.selling) as total')
             ->groupBy('ordered_products.order_id');
     }
+
+
+    public function resolveCustomerName(): ?string
+    {
+        return \App\Models\Helper\Utils::resolveOrderCustomerName($this);
+    }
+
+
+    public function enrichAddressCustomerName(): void
+    {
+        \App\Models\Helper\Utils::enrichOrderAddressCustomerName($this);
+    }
 }

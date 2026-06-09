@@ -29,6 +29,13 @@ class _ShippingScreenState extends ConsumerState<ShippingScreen> {
   void initState() {
     super.initState();
     _loadData();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await AppConfig.ensureAuthTokensLoaded();
+      if (!mounted) return;
+      if (AppConfig.hasActiveToken()) {
+        await _loadData();
+      }
+    });
   }
 
   Future<void> _loadData() async {
@@ -57,9 +64,13 @@ class _ShippingScreenState extends ConsumerState<ShippingScreen> {
 
   Future<void> _loadAddresses() async {
     try {
+      await AppConfig.ensureAuthTokensLoaded();
       print('[DEBUG] ShippingScreen._loadAddresses: Начинаем загрузку адресов...');
-      print('[DEBUG] ShippingScreen._loadAddresses: AppConfig.bearer.isNotEmpty = ${AppConfig.bearer.isNotEmpty}');
-      
+      print(
+        '[DEBUG] ShippingScreen._loadAddresses: token active=${AppConfig.hasActiveToken()}, '
+        'mobile=${AppConfig.mobileBearer.isNotEmpty}, bearer=${AppConfig.bearer.isNotEmpty}',
+      );
+
       final addressApi = AddressApi();
       final result = await addressApi.getAddresses();
       
@@ -104,15 +115,14 @@ class _ShippingScreenState extends ConsumerState<ShippingScreen> {
     final totalQuantity = cartItems.fold(0, (sum, item) => sum + item.qty);
     final totalAmount = cartItems.fold(0.0, (sum, item) => sum + item.subtotal);
     
-    // Перезагружаем адреса при изменении статуса авторизации
+    // Перезагружаем адреса после входа или смены пользователя
     ref.listen(authProvider, (previous, current) {
-      if (previous?.isAuthenticated != current.isAuthenticated) {
-        print('[DEBUG] ShippingScreen: Статус авторизации изменился');
-        print('[DEBUG] ShippingScreen: Предыдущий статус: ${previous?.isAuthenticated}');
-        print('[DEBUG] ShippingScreen: Текущий статус: ${current.isAuthenticated}');
-        print('[DEBUG] ShippingScreen: AppConfig.bearer.isNotEmpty: ${AppConfig.bearer.isNotEmpty}');
-        print('[DEBUG] ShippingScreen: Перезагружаем адреса...');
-        _loadAddresses();
+      final authReady = current.isAuthenticated && AppConfig.hasActiveToken();
+      final wasReady =
+          (previous?.isAuthenticated ?? false) && AppConfig.hasActiveToken();
+      if (authReady && (!wasReady || previous?.id != current.id)) {
+        print('[DEBUG] ShippingScreen: авторизация готова, перезагружаем адреса');
+        _loadData();
       }
     });
     

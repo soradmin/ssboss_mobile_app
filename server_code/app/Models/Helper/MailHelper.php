@@ -112,6 +112,8 @@ class MailHelper
             return null;
         }
 
+        Utils::enrichOrderAddressCustomerName($order);
+
         if ($request->time_zone) {
             $order['created'] = Utils::formatDate(Utils::convertTimeToUSERzone($order->created_at, $request->time_zone));
         } else {

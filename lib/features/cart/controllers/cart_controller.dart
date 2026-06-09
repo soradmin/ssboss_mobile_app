@@ -1,4 +1,6 @@
 // lib/features/cart/controllers/cart_controller.dart
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
@@ -9,6 +11,7 @@ import '../../catalog/models/product.dart';
 import '../../catalog/models/media.dart';
 import '../../../core/result.dart';
 import '../../../core/config.dart';
+import '../../personalization/user_preference_service.dart';
 
 // Провайдер для локальной корзины
 final cartProvider = StateNotifierProvider<CartController, List<CartItem>>((ref) {
@@ -83,6 +86,7 @@ class CartController extends StateNotifier<List<CartItem>> {
     }
     
     _saveCart();
+    unawaited(UserPreferenceService.instance.recordCartAdd(product));
   }
 
   // Генерируем уникальный ключ для товара с учетом атрибутов

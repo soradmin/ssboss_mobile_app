@@ -1,9 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shimmer/shimmer.dart';
 import '../repo/catalog_api.dart';
+import '../providers/content_cache.dart';
+import '../../personalization/user_preference_service.dart';
 import '../../../core/result.dart';
 import '../../cart/controllers/cart_controller.dart';
 
@@ -28,14 +32,28 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
   @override
   void initState() {
     super.initState();
-    _loadCategories();
+    final cache = CatalogCategoriesCache.instance;
+    if (cache.hasData) {
+      setState(() {
+        _categories = cache.categories;
+        _loading = false;
+      });
+      if (cache.isStale) {
+        unawaited(_loadCategories(showLoading: false));
+      }
+    } else {
+      _loadCategories();
+    }
   }
 
-  Future<void> _loadCategories() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+  Future<void> _loadCategories({bool showLoading = true}) async {
+    final cache = CatalogCategoriesCache.instance;
+    if (showLoading && !cache.hasData) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    }
 
     final api = CatalogApi();
     final result = await api.getCategories();
@@ -53,6 +71,7 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
       }
       
       if (categories.isNotEmpty) {
+        CatalogCategoriesCache.instance.save(categories);
         setState(() {
           _categories = categories;
           _loading = false;
@@ -432,7 +451,7 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
   }
 
   Widget _buildBody() {
-    if (_loading) {
+    if (_loading && !CatalogCategoriesCache.instance.hasData) {
       return RefreshIndicator(
         onRefresh: _loadCategories,
         color: const Color(0xFF8813BA),
@@ -649,6 +668,12 @@ class _CategoryTile extends StatelessWidget {
       onTap: () {
         // Переходим к товарам категории используя slug
         final categoryParam = slug ?? name.toLowerCase().replaceAll(' ', '-');
+        unawaited(
+          UserPreferenceService.instance.recordCategoryBrowse(
+            categorySlug: categoryParam,
+            categoryTitle: name,
+          ),
+        );
         print('[DEBUG] CategoriesScreen: Переход к категории: name="$name", slug="$slug", categoryId="$categoryId", categoryParam="$categoryParam"');
         final queryParams = <String, String>{
           'category': categoryParam,

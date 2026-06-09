@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -6,6 +8,7 @@ import '../repo/catalog_api.dart';
 import '../models/product.dart';
 import '../../../core/result.dart';
 import '../widgets/product_grid_card.dart';
+import '../../personalization/user_preference_service.dart';
 
 class ProductsScreen extends ConsumerStatefulWidget {
   final String? category;
@@ -56,12 +59,29 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
 
     final api = CatalogApi();
     print('[DEBUG] ProductsScreen._loadProducts: Загружаем товары для category="${widget.category}", categoryId="${widget.categoryId}", search="${widget.searchQuery}"');
-    final result = await api.products(
-      page: _currentPage,
-      category: widget.category,
-      search: widget.searchQuery,
-      categoryId: widget.categoryId,
-    );
+
+    final Result<List<Product>> result;
+    final searchQuery = widget.searchQuery?.trim();
+    if (searchQuery != null && searchQuery.isNotEmpty) {
+      if (_currentPage == 1) {
+        unawaited(UserPreferenceService.instance.recordSearch(searchQuery));
+      }
+      result = await api.searchProducts(searchQuery, page: _currentPage);
+    } else {
+      if (_currentPage == 1 && widget.category != null && widget.category!.isNotEmpty) {
+        unawaited(
+          UserPreferenceService.instance.recordCategoryBrowse(
+            categorySlug: widget.category!,
+            categoryTitle: widget.categoryTitle,
+          ),
+        );
+      }
+      result = await api.products(
+        page: _currentPage,
+        category: widget.category,
+        categoryId: widget.categoryId,
+      );
+    }
     
     if (result is Ok<List<Product>>) {
       final newProducts = result.value;
@@ -104,7 +124,9 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
           ),
         ),
         title: Text(
-          widget.categoryTitle ?? widget.category ?? 'Товары',
+          (widget.searchQuery != null && widget.searchQuery!.trim().isNotEmpty)
+              ? 'Поиск'
+              : (widget.categoryTitle ?? widget.category ?? 'Товары'),
           style: const TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.bold,

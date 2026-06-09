@@ -392,6 +392,44 @@ class Utils
     }
 
 
+    public static function resolveOrderCustomerName($order): ?string
+    {
+        if (!$order) {
+            return null;
+        }
+
+        if ($order->user && !empty(trim((string) ($order->user->name ?? '')))) {
+            return trim($order->user->name);
+        }
+
+        if ($order->guest_user && !empty(trim((string) ($order->guest_user->name ?? '')))) {
+            return trim($order->guest_user->name);
+        }
+
+        if ($order->relationLoaded('user_info') && $order->user_info
+            && !empty(trim((string) ($order->user_info->name ?? '')))) {
+            return trim($order->user_info->name);
+        }
+
+        return null;
+    }
+
+
+    public static function enrichOrderAddressCustomerName($order): void
+    {
+        if (!$order || !$order->address) {
+            return;
+        }
+
+        $customerName = self::resolveOrderCustomerName($order);
+        if (!$customerName) {
+            return;
+        }
+
+        $order->address->address_label = $order->address->name;
+        $order->address->name = $customerName;
+        $order->customer_name = $customerName;
+    }
 
 
 }

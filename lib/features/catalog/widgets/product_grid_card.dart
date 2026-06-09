@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,6 +9,7 @@ import 'package:shimmer/shimmer.dart';
 import '../../../core/config.dart';
 import '../../cart/controllers/cart_controller.dart';
 import '../../favorites/repo/favorites_api.dart';
+import '../../personalization/user_preference_service.dart';
 import '../models/product.dart';
 import 'product_price_row.dart';
 
@@ -26,11 +29,15 @@ class ProductGridCard extends ConsumerWidget {
 
   final Product product;
   final ProductAddToCartCallback? onAddToCart;
+  final bool initiallyFavorite;
+  final ValueChanged<bool>? onFavoriteChanged;
 
   const ProductGridCard({
     super.key,
     required this.product,
     this.onAddToCart,
+    this.initiallyFavorite = false,
+    this.onFavoriteChanged,
   });
 
   static String imageUrlFor(Product product) {
@@ -118,7 +125,11 @@ class ProductGridCard extends ConsumerWidget {
                   Positioned(
                     top: 8,
                     right: 8,
-                    child: ProductGridFavoriteButton(product: product),
+                    child: ProductGridFavoriteButton(
+                      product: product,
+                      initiallyFavorite: initiallyFavorite,
+                      onFavoriteChanged: onFavoriteChanged,
+                    ),
                   ),
                   Positioned(
                     right: 8,
@@ -390,8 +401,15 @@ class ProductGridCardSkeleton extends StatelessWidget {
 
 class ProductGridFavoriteButton extends ConsumerStatefulWidget {
   final Product product;
+  final bool initiallyFavorite;
+  final ValueChanged<bool>? onFavoriteChanged;
 
-  const ProductGridFavoriteButton({super.key, required this.product});
+  const ProductGridFavoriteButton({
+    super.key,
+    required this.product,
+    this.initiallyFavorite = false,
+    this.onFavoriteChanged,
+  });
 
   @override
   ConsumerState<ProductGridFavoriteButton> createState() =>
@@ -400,8 +418,14 @@ class ProductGridFavoriteButton extends ConsumerStatefulWidget {
 
 class _ProductGridFavoriteButtonState
     extends ConsumerState<ProductGridFavoriteButton> {
-  bool _isFavorite = false;
+  late bool _isFavorite;
   bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _isFavorite = widget.initiallyFavorite;
+  }
 
   Future<void> _toggleFavorite() async {
     if (_isLoading) return;
@@ -419,6 +443,7 @@ class _ProductGridFavoriteButtonState
               _isFavorite = false;
               _isLoading = false;
             });
+            widget.onFavoriteChanged?.call(false);
           },
           err: (_) => setState(() => _isLoading = false),
         );
@@ -426,10 +451,12 @@ class _ProductGridFavoriteButtonState
         final result = await favoritesApi.addToFavorites(widget.product.id);
         result.when(
           ok: (_) {
+            unawaited(UserPreferenceService.instance.recordFavorite(widget.product));
             setState(() {
               _isFavorite = true;
               _isLoading = false;
             });
+            widget.onFavoriteChanged?.call(true);
           },
           err: (_) => setState(() => _isLoading = false),
         );

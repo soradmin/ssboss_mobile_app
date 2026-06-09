@@ -35,6 +35,8 @@ class OrderValidator {
         (selectedAddress.serverAddressId == null ||
             selectedAddress.serverAddressId! <= 0)) {
       errors.add('Не выбран адрес доставки');
+    } else if (selectedAddress.isLocalPickup) {
+      // Самовывоз (id=0): serverAddressId подставляется из профиля в PaymentApi.
     } else {
       // Проверка данных адреса
       if (selectedAddress.name.isEmpty) {

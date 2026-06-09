@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:dio/dio.dart';
 import '../../../core/api_client.dart';
 import '../../../core/result.dart';
@@ -323,201 +325,159 @@ class AddressApi {
     }
   }
 
+  static const Address _localPickup = Address(
+    id: Address.localPickupId,
+    name: 'Пункт выдачи SSBOSS',
+    address: 'улица Джаббора Расулова, 6/1',
+    city: 'Душанбе',
+    region: 'РРП',
+    postalCode: '734000',
+    phone: '930900412',
+    country: 'TJ',
+    type: 'pickup',
+    isDefault: true,
+  );
+
+  static List<Address> _withLocalPickup(List<Address> serverAddresses) {
+    return [_localPickup, ...serverAddresses];
+  }
+
+  static dynamic _normalizeResponseBody(dynamic raw) {
+    if (raw is String) {
+      final trimmed = raw.trim();
+      if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+        return jsonDecode(trimmed);
+      }
+    }
+    return raw;
+  }
+
+  static List<Map<String, dynamic>> _extractAddressMaps(dynamic body) {
+    final normalized = _normalizeResponseBody(body);
+    if (normalized is List) {
+      return normalized
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+    }
+    if (normalized is! Map) return [];
+
+    final map = Map<String, dynamic>.from(normalized);
+    final status = map['status'];
+    if (status != null && status != 200 && status != '200') {
+      final message = map['message']?.toString() ?? 'Ошибка API адресов ($status)';
+      print('[DEBUG] AddressApi: API status=$status message=$message');
+      return [];
+    }
+
+    final dataField = map['data'];
+    if (dataField is List) {
+      return dataField
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+    }
+    if (dataField is Map) {
+      final nested = Map<String, dynamic>.from(dataField);
+      final list = nested['data'];
+      if (list is List) {
+        return list
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+      }
+      final addresses = nested['addresses'];
+      if (addresses is List) {
+        return addresses
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+      }
+    }
+    return [];
+  }
+
+  static List<Address> _parseServerAddresses(List<Map<String, dynamic>> maps) {
+    final result = <Address>[];
+    for (final json in maps) {
+      try {
+        result.add(Address.fromJson(json));
+      } catch (e) {
+        print('[DEBUG] AddressApi: пропуск адреса $json — $e');
+      }
+    }
+    return result;
+  }
+
   /// Получение всех адресов пользователя
   Future<Result<List<Address>>> getAddresses() async {
     try {
       print('[DEBUG] AddressApi.getAddresses: Получаем адреса пользователя...');
-      
-      // Сначала добавляем статический пункт выдачи
-      final List<Address> addresses = [
-        const Address(
-          id: Address.localPickupId,
-          name: 'Пункт выдачи SSBOSS',
-          address: 'улица Джаббора Расулова, 6/1',
-          city: 'Душанбе',
-          region: 'РРП',
-          postalCode: '734000',
-          phone: '930900412',
-          country: 'TJ',
-          type: 'pickup',
-          isDefault: true,
-        ),
-      ];
-      
-      // Пытаемся получить адреса с сервера (только для авторизованных пользователей)
+
+      await AppConfig.ensureAuthTokensLoaded();
       final activeToken = AppConfig.getActiveBearerToken();
-      if (activeToken.isNotEmpty) {
-        try {
-          print('[DEBUG] AddressApi.getAddresses: Загружаем адреса для авторизованного пользователя');
-          print('[DEBUG] AddressApi.getAddresses: Bearer token длина: ${activeToken.length}');
-          print('[DEBUG] AddressApi.getAddresses: Bearer token начало: ${activeToken.length > 20 ? activeToken.substring(0, 20) : activeToken}...');
-          print('[DEBUG] AddressApi.getAddresses: Полный Bearer token: $activeToken');
-          
-          // Пробуем разные возможные endpoints
-          final endpoints = [
-            '/user/address/all',
-            '/user/addresses',
-            '/addresses',
-            '/user/address',
-          ];
-          
-          Response? res;
-          String? workingEndpoint;
-          
-          for (final endpoint in endpoints) {
-            try {
-              print('[DEBUG] AddressApi.getAddresses: Пробуем endpoint: $endpoint');
-              
-              res = await dio.get(
-                endpoint,
-                queryParameters: {
-                  'time_zone': 'Asia/Tashkent',
-                  'order_by': 'created_at',
-                  'type': 'desc',
-                  'page': 1,
-                },
-                options: Options(
-                  headers: {
-                    'Authorization': 'Bearer $activeToken',
-                  },
-                ),
-              );
-              
-              print('[DEBUG] AddressApi.getAddresses: $endpoint - HTTP статус = ${res.statusCode}');
-              print('[DEBUG] AddressApi.getAddresses: $endpoint - Тип ответа: ${res.data.runtimeType}');
-              
-              // Проверяем, что получили JSON, а не HTML
-              if (res.data is Map || res.data is List) {
-                print('[DEBUG] AddressApi.getAddresses: Найден рабочий endpoint: $endpoint');
-                workingEndpoint = endpoint;
-                break;
-              } else {
-                print('[DEBUG] AddressApi.getAddresses: $endpoint вернул HTML, пробуем следующий...');
-              }
-            } catch (e) {
-              print('[DEBUG] AddressApi.getAddresses: $endpoint - ошибка: $e');
-              continue;
-            }
-          }
-          
-          if (res == null || workingEndpoint == null) {
-            print('[DEBUG] AddressApi.getAddresses: Ни один endpoint не вернул JSON');
-            throw Exception('Не найден рабочий API endpoint для адресов');
-          }
-        
-        print('[DEBUG] AddressApi.getAddresses: HTTP статус = ${res.statusCode}');
-        print('[DEBUG] AddressApi.getAddresses: Тип ответа: ${res.data.runtimeType}');
-        print('[DEBUG] AddressApi.getAddresses: Ответ сервера = ${res.data}');
-        
-        final data = res.data;
-        
-                // Проверяем различные возможные структуры ответа
-                if (data is Map) {
-                  print('[DEBUG] AddressApi.getAddresses: Ответ - Map, ключи: ${data.keys.toList()}');
-                  
-                  // Проверяем наличие data
-                  if (data.containsKey('data')) {
-                    final dataField = data['data'];
-                    print('[DEBUG] AddressApi.getAddresses: Поле data найдено, тип: ${dataField.runtimeType}');
-                    print('[DEBUG] AddressApi.getAddresses: Содержимое data: $dataField');
-                    
-                    if (dataField is List) {
-                      print('[DEBUG] AddressApi.getAddresses: data - это List с ${dataField.length} элементами');
-                      try {
-                        final serverAddresses = dataField
-                            .map((json) {
-                              print('[DEBUG] AddressApi.getAddresses: Парсим адрес: $json');
-                              return Address.fromJson(json as Map<String, dynamic>);
-                            })
-                            .toList();
-                        addresses.addAll(serverAddresses);
-                        print('[DEBUG] AddressApi.getAddresses: Успешно добавлено ${serverAddresses.length} адресов с сервера');
-                      } catch (e) {
-                        print('[DEBUG] AddressApi.getAddresses: Ошибка парсинга адресов: $e');
-                      }
-                    } else if (dataField is Map) {
-                      print('[DEBUG] AddressApi.getAddresses: data - это Map: $dataField');
-                      
-                      // Проверяем структуру пагинации: data.data (список адресов)
-                      if (dataField.containsKey('data') && dataField['data'] is List) {
-                        final addressesList = dataField['data'] as List;
-                        print('[DEBUG] AddressApi.getAddresses: Найден список адресов в data.data с ${addressesList.length} элементами');
-                        try {
-                          final serverAddresses = addressesList
-                              .map((json) {
-                                print('[DEBUG] AddressApi.getAddresses: Парсим адрес: $json');
-                                return Address.fromJson(json as Map<String, dynamic>);
-                              })
-                              .toList();
-                          addresses.addAll(serverAddresses);
-                          print('[DEBUG] AddressApi.getAddresses: Успешно добавлено ${serverAddresses.length} адресов из data.data');
-                        } catch (e) {
-                          print('[DEBUG] AddressApi.getAddresses: Ошибка парсинга адресов из data.data: $e');
-                        }
-                      }
-                      // Возможно, адреса находятся в другом поле
-                      else if (dataField.containsKey('addresses')) {
-                        final addressesField = dataField['addresses'];
-                        print('[DEBUG] AddressApi.getAddresses: Найдено поле addresses: $addressesField');
-                        if (addressesField is List) {
-                          try {
-                            final serverAddresses = addressesField
-                                .map((json) => Address.fromJson(json as Map<String, dynamic>))
-                                .toList();
-                            addresses.addAll(serverAddresses);
-                            print('[DEBUG] AddressApi.getAddresses: Успешно добавлено ${serverAddresses.length} адресов из поля addresses');
-                          } catch (e) {
-                            print('[DEBUG] AddressApi.getAddresses: Ошибка парсинга адресов из поля addresses: $e');
-                          }
-                        }
-                      }
-                    }
-                  }
-                } else if (data is List) {
-          print('[DEBUG] AddressApi.getAddresses: Ответ - прямой List с ${data.length} элементами');
-          try {
-            final serverAddresses = data
-                .map((json) {
-                  print('[DEBUG] AddressApi.getAddresses: Парсим адрес: $json');
-                  return Address.fromJson(json as Map<String, dynamic>);
-                })
-                .toList();
-            addresses.addAll(serverAddresses);
-            print('[DEBUG] AddressApi.getAddresses: Успешно добавлено ${serverAddresses.length} адресов с сервера');
-          } catch (e) {
-            print('[DEBUG] AddressApi.getAddresses: Ошибка парсинга адресов: $e');
-          }
-        } else {
-          print('[DEBUG] AddressApi.getAddresses: Неожиданный тип ответа: ${data.runtimeType}');
-        }
-        } catch (e) {
-          print('[DEBUG] AddressApi.getAddresses: Ошибка загрузки с сервера: $e');
-          // Продолжаем со статическим адресом
-        }
-      } else {
-        print('[DEBUG] AddressApi.getAddresses: Пользователь не авторизован, показываем только пункт выдачи');
+
+      if (activeToken.isEmpty) {
+        print('[DEBUG] AddressApi.getAddresses: нет токена — только пункт выдачи');
+        return const Ok([_localPickup]);
       }
-      
-      print('[DEBUG] AddressApi.getAddresses: Всего адресов: ${addresses.length}');
-      return Ok(addresses);
-      
+
+      print(
+        '[DEBUG] AddressApi.getAddresses: токен len=${activeToken.length}, '
+        'mobile=${AppConfig.mobileBearer.isNotEmpty}, bearer=${AppConfig.bearer.isNotEmpty}',
+      );
+
+      try {
+        final res = await dio.get(
+          '/user/address/all',
+          queryParameters: {
+            'time_zone': 'Asia/Tashkent',
+            'order_by': 'created_at',
+            'type': 'desc',
+            'page': 1,
+          },
+          options: Options(
+            responseType: ResponseType.json,
+            headers: {'Authorization': 'Bearer $activeToken'},
+          ),
+        );
+
+        print(
+          '[DEBUG] AddressApi.getAddresses: HTTP ${res.statusCode}, '
+          'тип=${res.data.runtimeType}',
+        );
+
+        final rawMaps = _extractAddressMaps(res.data);
+        final serverAddresses = _parseServerAddresses(rawMaps);
+        final all = _withLocalPickup(serverAddresses);
+
+        print(
+          '[DEBUG] AddressApi.getAddresses: с сервера ${serverAddresses.length}, '
+          'всего ${all.length}',
+        );
+
+        if (serverAddresses.isEmpty) {
+          print(
+            '[WARN] AddressApi.getAddresses: пустой список доставки при активном токене. '
+            'body=${res.data}',
+          );
+        }
+
+        return Ok(all);
+      } on DioException catch (e) {
+        print('[DEBUG] AddressApi.getAddresses: DioException ${e.message}');
+        if (e.response?.statusCode == 401) {
+          return const Err(
+            'Сессия истекла. Выйдите и войдите снова, затем откройте адреса.',
+          );
+        }
+        return Err(
+          e.response?.data?.toString() ?? e.message ?? 'Ошибка загрузки адресов',
+        );
+      }
     } catch (e) {
-      print('[DEBUG] AddressApi.getAddresses: Общая ошибка: $e');
-      // В случае ошибки возвращаем хотя бы статический пункт выдачи
-      return const Ok([
-        Address(
-          id: Address.localPickupId,
-          name: 'Пункт выдачи SSBOSS',
-          address: 'улица Джаббора Расулова, 6/1',
-          city: 'Душанбе',
-          region: 'РРП',
-          postalCode: '734000',
-          phone: '930900412',
-          country: 'TJ',
-          type: 'pickup',
-          isDefault: true,
-        ),
-      ]);
+      print('[DEBUG] AddressApi.getAddresses: общая ошибка: $e');
+      return const Ok([_localPickup]);
     }
   }
 }

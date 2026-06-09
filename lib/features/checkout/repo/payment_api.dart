@@ -117,6 +117,23 @@ class PaymentApi {
       } else {
         print('[DEBUG] PaymentApi.createOrder: Ошибка загрузки адресов: ${(addressResult as Err).message}');
       }
+
+      // Пункт выдачи (id=0) может отсутствовать в списке после сбоя API — восстанавливаем локально.
+      if (selectedAddress == null && addressId == Address.localPickupId) {
+        selectedAddress = const Address(
+          id: Address.localPickupId,
+          name: 'Пункт выдачи SSBOSS',
+          address: 'улица Джаббора Расулова, 6/1',
+          city: 'Душанбе',
+          region: 'РРП',
+          postalCode: '734000',
+          phone: '930900412',
+          country: 'TJ',
+          type: 'pickup',
+          isDefault: true,
+        );
+        print('[DEBUG] PaymentApi.createOrder: Используем встроенный пункт выдачи (id=0)');
+      }
       
       String? userToken;
       Map<String, dynamic>? userData;
@@ -167,14 +184,22 @@ class PaymentApi {
 
         final allAddresses =
             addressResult is Ok<List<Address>> ? addressResult.value : <Address>[];
+        final profileDefaultId = _parseProfileDefaultAddressId(userData);
         final serverAddressId = _resolveSelectedAddressForServer(
           selectedAddress,
           allAddresses,
-          profileDefaultAddress: userData?['default_address'] as int?,
+          profileDefaultAddress: profileDefaultId,
         );
         print(
-          '[DEBUG] PaymentApi.createOrder: serverAddressId для заказа = $serverAddressId',
+          '[DEBUG] PaymentApi.createOrder: serverAddressId для заказа = $serverAddressId (profile default=$profileDefaultId)',
         );
+
+        if (serverAddressId == null || serverAddressId <= 0) {
+          return const Err(
+            'Для оформления заказа нужен адрес в профиле. '
+            'Добавьте адрес доставки в профиле или выберите сохранённый адрес, затем повторите заказ.',
+          );
+        }
 
         final updateResult = await cartApi.updateShippingAddress(
           addressId,
@@ -190,7 +215,7 @@ class PaymentApi {
           print('[DEBUG] PaymentApi.createOrder: Корзина успешно обновлена с адресом $addressId');
         }
       } else {
-        print('[WARNING] PaymentApi.createOrder: Адрес не найден, но продолжаем создание заказа...');
+        return const Err('Не удалось определить адрес для заказа. Выберите пункт выдачи или адрес доставки.');
       }
       
       // Определяем order_method и название метода оплаты
@@ -753,8 +778,17 @@ class PaymentApi {
     return qty * prc;
   }
 
-  /// ID адреса для selected_address на сервере (имя клиента в заказе).
-  /// Пункт выдачи в приложении не имеет ID в БД — нельзя отправлять 0 или 1.
+  /// Сервер пишет orders.user_address_id из users.default_address.
+  /// default_address обновляется только через /cart/update-shipping + selected_address.
+  static int? _parseProfileDefaultAddressId(Map<String, dynamic>? profile) {
+    if (profile == null) return null;
+    final raw = profile['default_address'] ?? profile['defaultAddress'];
+    if (raw is int && raw > 0) return raw;
+    if (raw is String) return int.tryParse(raw);
+    return null;
+  }
+
+  /// ID адреса для selected_address на сервере (обновляет users.default_address).
   static int? _resolveSelectedAddressForServer(
     Address selected,
     List<Address> addresses, {
@@ -762,6 +796,12 @@ class PaymentApi {
   }) {
     if (!selected.isLocalPickup) {
       return selected.serverAddressId;
+    }
+
+    // Самовывоз: shipping_type=2, но user_address_id всё равно обязателен в БД.
+    // Берём default_address из профиля даже если список адресов не загрузился (часто на iOS).
+    if (profileDefaultAddress != null && profileDefaultAddress > 0) {
+      return profileDefaultAddress;
     }
 
     final deliveryAddresses = addresses
@@ -779,10 +819,18 @@ class PaymentApi {
       return preferred.serverAddressId;
     }
 
-    if (profileDefaultAddress != null &&
-        profileDefaultAddress > 0 &&
-        addresses.any((a) => a.serverAddressId == profileDefaultAddress)) {
-      return profileDefaultAddress;
+    // Пункт выдачи с сервера (id > 0), не встроенная карточка id=0.
+    if (selected.serverAddressId != null && selected.serverAddressId! > 0) {
+      return selected.serverAddressId;
+    }
+
+    final anyServerId = addresses
+        .map((a) => a.serverAddressId)
+        .whereType<int>()
+        .where((id) => id > 0)
+        .toList();
+    if (anyServerId.isNotEmpty) {
+      return anyServerId.first;
     }
 
     return null;

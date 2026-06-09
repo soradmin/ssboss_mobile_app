@@ -35,6 +35,7 @@ class AuthNotifier extends StateNotifier<User> {
   }
 
   Future<void> _checkAuthStatusAsync() async {
+    await AppConfig.ensureAuthTokensLoaded();
     // Сначала проверяем мобильный токен
     final mobileToken = await AppConfig.getMobileBearerToken();
     print('[DEBUG] AuthProvider: Загружен мобильный токен: ${mobileToken != null ? 'да' : 'нет'}');

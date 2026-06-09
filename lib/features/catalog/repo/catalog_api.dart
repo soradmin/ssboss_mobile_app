@@ -44,9 +44,123 @@ List<ProductImage> parseProductImagesFromApi(
 }
 
 class CatalogApi {
+  static String _cdnImageUrl(String raw) {
+    raw = raw.trim();
+    if (raw.isEmpty) return '';
+    if (raw.startsWith('http')) return raw;
+    final base = AppConfig.cdnBaseUrl.isNotEmpty
+        ? AppConfig.cdnBaseUrl
+        : AppConfig.apiBaseUrl.replaceFirst(RegExp(r'/api/?v?\d*/*$'), '');
+    if (raw.startsWith('/uploads/')) return '$base$raw';
+    final path = raw.startsWith('/') ? raw : '/$raw';
+    return '$base/uploads$path';
+  }
+
+  List<Product> _mapRawProductList(List<dynamic> list) {
+    return list
+        .whereType<Map>()
+        .map((e) => Product.fromJson(Map<String, dynamic>.from(e)))
+        .map((p) {
+          final normalizedImages = p.images
+              .map(
+                (img) => ProductImage(
+                  image: _cdnImageUrl(img.image),
+                  thumb: _cdnImageUrl(img.thumb),
+                ),
+              )
+              .toList();
+          final normalizedVideos = p.videos
+              .map((v) => ProductVideo(video: _cdnImageUrl(v.video)))
+              .toList();
+          return Product(
+            id: p.id,
+            name: p.name,
+            image: _cdnImageUrl(p.image),
+            price: p.price,
+            oldPrice: p.oldPrice,
+            rating: p.rating,
+            reviewCount: p.reviewCount,
+            badge: p.badge,
+            sellerName: p.sellerName,
+            sellerRating: p.sellerRating,
+            storeSlug: p.storeSlug,
+            description: p.description,
+            descriptionImages: p.descriptionImages,
+            images: normalizedImages,
+            videos: normalizedVideos,
+            attributes: p.attributes,
+          );
+        })
+        .toList();
+  }
+
+  /// Товары коллекции с блока главной страницы сайта (как «Трендовые товары»).
+  Future<Result<List<Product>>> getHomeCollectionProducts({
+    required String collectionId,
+    List<String> titleKeywords = const [],
+  }) async {
+    try {
+      final response = await dio.get('/home');
+      if (response.statusCode != 200 || response.data == null) {
+        return const Err('Не удалось загрузить главную страницу');
+      }
+
+      final data = response.data;
+      Map<String, dynamic>? dataMap;
+      if (data is Map<String, dynamic>) {
+        if (data['data'] is Map<String, dynamic>) {
+          dataMap = data['data'] as Map<String, dynamic>;
+        } else {
+          dataMap = data;
+        }
+      }
+      if (dataMap == null) {
+        return const Err('Неверный формат ответа /home');
+      }
+
+      final collections = dataMap['collections'];
+      if (collections is! List) {
+        return const Ok([]);
+      }
+
+      for (final item in collections) {
+        if (item is! Map) continue;
+        final map = Map<String, dynamic>.from(item);
+        final id = map['id']?.toString() ?? '';
+        final title = (map['title'] ?? '').toString().toLowerCase();
+
+        final idMatch = id == collectionId;
+        final titleMatch = titleKeywords.any(
+          (k) => k.isNotEmpty && title.contains(k.toLowerCase()),
+        );
+        if (!idMatch && !titleMatch) continue;
+
+        final rawProducts = map['products'];
+        if (rawProducts is! List || rawProducts.isEmpty) continue;
+
+        final products = _mapRawProductList(rawProducts);
+        print(
+          '[DEBUG] getHomeCollectionProducts: collection id=$id '
+          'title="${map['title']}" → ${products.length} товаров',
+        );
+        return Ok(products);
+      }
+
+      print(
+        '[DEBUG] getHomeCollectionProducts: коллекция $collectionId не найдена в /home',
+      );
+      return const Ok([]);
+    } on DioException catch (e) {
+      return Err(e.message ?? 'Ошибка сети');
+    } catch (e) {
+      return Err(e.toString());
+    }
+  }
+
   Future<Result<List<Product>>> products({
     int page = 1,
     String? category,
+    String? collection,
     String? search,
     int? categoryId,
   }) async {
@@ -67,16 +181,15 @@ class CatalogApi {
       
       // Добавляем фильтры если они есть
       if (category != null && category.isNotEmpty) {
-        // API использует параметр 'category' для фильтрации по категориям (slug)
-        // Параметр 'collection' используется для коллекций товаров (Рекомендуемые, Тренды и т.д.)
-        // ВАЖНО: НЕ нормализуем slug к нижнему регистру, так как в базе данных slug может быть с заглавной буквы
-        // Например: "Shoes", "Beauty", "For kids", "For-home", "Accessories"
-        // Только убираем пробелы в начале и конце
+        // API: category — slug категории (endpoint /all)
         final trimmedSlug = category.trim();
         queryParams['category'] = trimmedSlug;
-        print('[DEBUG] CatalogApi.products: Входной category="$category", обрезанный slug="$trimmedSlug", categoryId=$categoryId');
-      } else {
-        print('[DEBUG] CatalogApi.products: category не указан или пуст');
+        print('[DEBUG] CatalogApi.products: category="$trimmedSlug", categoryId=$categoryId');
+      }
+      if (collection != null && collection.isNotEmpty) {
+        // API: collection — id коллекции (Рекомендуемые=1, Тренды=2 на ssboss.shop)
+        queryParams['collection'] = collection.trim();
+        print('[DEBUG] CatalogApi.products: collection="${queryParams['collection']}"');
       }
       
       print('[DEBUG] API Request params: $queryParams');
@@ -197,6 +310,63 @@ class CatalogApi {
     } catch (e) {
       return Err(e.toString());
     }
+  }
+
+  /// Поиск товаров (текст + артикул = id товара в каталоге).
+  Future<Result<List<Product>>> searchProducts(String query, {int page = 1}) async {
+    final q = query.trim();
+    if (q.isEmpty) return const Ok([]);
+
+    final merged = <Product>[];
+    final seen = <int>{};
+
+    void addProduct(Product p) {
+      if (p.id > 0 && seen.add(p.id)) merged.add(p);
+    }
+
+    // Артикул в приложении = products.id (см. «О товаре»).
+    if (page <= 1) {
+      final articleId = int.tryParse(q);
+      if (articleId != null && articleId > 0) {
+        final direct = await productById(articleId);
+        if (direct is Ok<Product>) {
+          addProduct(direct.value);
+          print('[DEBUG] searchProducts: найден товар по артикулу $articleId');
+        }
+      }
+    }
+
+    // Endpoint поиска сайта (/search)
+    try {
+      final res = await dio.get('/search', queryParameters: {'q': q});
+      final data = res.data;
+      if (data is Map && data['data'] is Map) {
+        final payload = data['data'] as Map;
+        final productList = payload['product'];
+        if (productList is List) {
+          for (final item in productList) {
+            if (item is Map) {
+              addProduct(
+                _mapRawProductList([item]).first,
+              );
+            }
+          }
+        }
+      }
+    } catch (e) {
+      print('[DEBUG] searchProducts: /search — $e');
+    }
+
+    // Дополнительно — listing с параметром q (название, теги)
+    final listRes = await products(page: page, search: q);
+    if (listRes is Ok<List<Product>>) {
+      for (final p in listRes.value) {
+        addProduct(p);
+      }
+    }
+
+    print('[DEBUG] searchProducts: "$q" → ${merged.length} товаров');
+    return Ok(merged);
   }
 
   /// Получение категорий товаров с сайта
