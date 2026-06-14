@@ -8,6 +8,7 @@ import 'package:shimmer/shimmer.dart';
 
 import '../../../core/config.dart';
 import '../../cart/controllers/cart_controller.dart';
+import '../../compare/repo/compare_api.dart';
 import '../../favorites/repo/favorites_api.dart';
 import '../../personalization/user_preference_service.dart';
 import '../models/product.dart';
@@ -24,13 +25,18 @@ class ProductGridCard extends ConsumerWidget {
   /// Фото 3:4 (как Wildberries) — удобно для вертикальных инфографик на карточке.
   static const double imageAspectRatio = 3 / 4;
 
-  /// `childAspectRatio` для GridView/SliverGrid с этой карточкой (2 колонки).
-  static const double gridChildAspectRatio = 0.58;
+  /// `childAspectRatio` для GridView/SliverGrid (2 колонки).
+  /// Чуть ниже 0.58 — 2 строки названия без обрезки, без лишнего зазора в ячейке.
+  static const double gridChildAspectRatio = 0.57;
+  static const double gridMainAxisSpacing = 8;
+  static const double gridCrossAxisSpacing = 10;
 
   final Product product;
   final ProductAddToCartCallback? onAddToCart;
   final bool initiallyFavorite;
   final ValueChanged<bool>? onFavoriteChanged;
+  final bool initiallyInCompare;
+  final ValueChanged<bool>? onCompareChanged;
 
   const ProductGridCard({
     super.key,
@@ -38,6 +44,8 @@ class ProductGridCard extends ConsumerWidget {
     this.onAddToCart,
     this.initiallyFavorite = false,
     this.onFavoriteChanged,
+    this.initiallyInCompare = false,
+    this.onCompareChanged,
   });
 
   static String imageUrlFor(Product product) {
@@ -125,11 +133,17 @@ class ProductGridCard extends ConsumerWidget {
                   Positioned(
                     top: 8,
                     right: 8,
-                    child: ProductGridFavoriteButton(
-                      product: product,
-                      initiallyFavorite: initiallyFavorite,
-                      onFavoriteChanged: onFavoriteChanged,
-                    ),
+                    child: initiallyInCompare
+                        ? ProductGridCompareButton(
+                            product: product,
+                            initiallyInCompare: initiallyInCompare,
+                            onCompareChanged: onCompareChanged,
+                          )
+                        : ProductGridFavoriteButton(
+                            product: product,
+                            initiallyFavorite: initiallyFavorite,
+                            onFavoriteChanged: onFavoriteChanged,
+                          ),
                   ),
                   Positioned(
                     right: 8,
@@ -220,7 +234,9 @@ class ProductGridCard extends ConsumerWidget {
                     style: const TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w500,
-                      height: 1.2,
+                      height: 1.3,
+                      leadingDistribution: TextLeadingDistribution.even,
+                      color: Color(0xFF4A5568),
                     ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
@@ -393,6 +409,91 @@ class ProductGridCardSkeleton extends StatelessWidget {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class ProductGridCompareButton extends ConsumerStatefulWidget {
+  final Product product;
+  final bool initiallyInCompare;
+  final ValueChanged<bool>? onCompareChanged;
+
+  const ProductGridCompareButton({
+    super.key,
+    required this.product,
+    this.initiallyInCompare = false,
+    this.onCompareChanged,
+  });
+
+  @override
+  ConsumerState<ProductGridCompareButton> createState() =>
+      _ProductGridCompareButtonState();
+}
+
+class _ProductGridCompareButtonState
+    extends ConsumerState<ProductGridCompareButton> {
+  late bool _isInCompare;
+  bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _isInCompare = widget.initiallyInCompare;
+  }
+
+  Future<void> _toggleCompare() async {
+    if (_isLoading || !_isInCompare) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      final compareApi = ref.read(compareApiProvider);
+      final result = await compareApi.removeFromCompare(widget.product.id);
+      result.when(
+        ok: (_) {
+          setState(() {
+            _isInCompare = false;
+            _isLoading = false;
+          });
+          widget.onCompareChanged?.call(false);
+        },
+        err: (_) => setState(() => _isLoading = false),
+      );
+    } catch (_) {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: _toggleCompare,
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: Colors.grey[300]!,
+              width: 1,
+            ),
+          ),
+          child: _isLoading
+              ? const Padding(
+                  padding: EdgeInsets.all(8),
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(
+                  Icons.compare_arrows_rounded,
+                  color: Colors.blue,
+                  size: 20,
+                ),
         ),
       ),
     );

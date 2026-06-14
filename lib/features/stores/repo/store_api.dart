@@ -57,6 +57,9 @@ class StoreApi {
                 storeData['review'] = innerData['review'];
                 print('[DEBUG] StoreApi.getStoreBySlug: Добавлен review: ${innerData['review']}');
               }
+              if (innerData.containsKey('following')) {
+                storeData['following'] = innerData['following'];
+              }
             } else if (innerData.containsKey('data') && innerData['data'] is Map) {
               // Проверяем, может быть еще один уровень вложенности
               final nestedData = innerData['data'] as Map;
@@ -199,9 +202,24 @@ class StoreApi {
           print('[WARNING] StoreApi.getFavoriteStores: Неожиданный формат элемента в списке любимых магазинов: $itemJson');
           return null; // Возвращаем null для некорректных элементов
         }).whereType<Store>().toList(); // Фильтруем null значения
+
+        final enrichedStores = <Store>[];
+        for (final store in stores) {
+          if (store.slug.isNotEmpty) {
+            final details = await getStoreBySlug(store.slug);
+            details.when(
+              ok: (fullStore) => enrichedStores.add(
+                fullStore.copyWith(isFollowing: true),
+              ),
+              err: (_) => enrichedStores.add(store),
+            );
+          } else {
+            enrichedStores.add(store);
+          }
+        }
         
-        print('[DEBUG] StoreApi.getFavoriteStores: Успешно создано ${stores.length} магазинов');
-        return Ok(stores);
+        print('[DEBUG] StoreApi.getFavoriteStores: Успешно создано ${enrichedStores.length} магазинов');
+        return Ok(enrichedStores);
       }
       
       return Err('Не удалось получить список магазинов: ${response.statusCode}');

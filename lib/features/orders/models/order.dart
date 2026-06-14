@@ -6,6 +6,7 @@ class Order {
   final int id;
   final String orderNumber;
   final String status;
+  final bool isCancelled;
   final String paymentMethod;
   final String paymentStatus;
   final String deliveryStatus;
@@ -19,6 +20,7 @@ class Order {
     required this.id,
     required this.orderNumber,
     required this.status,
+    this.isCancelled = false,
     required this.paymentMethod,
     required this.paymentStatus,
     required this.deliveryStatus,
@@ -28,6 +30,8 @@ class Order {
     this.address,
     required this.items,
   });
+
+  String get effectiveStatus => isCancelled ? 'cancelled' : status;
 
   factory Order.fromJson(Map<String, dynamic> json) {
     print('[DEBUG] Order.fromJson: Обрабатываем JSON: $json');
@@ -185,17 +189,24 @@ class Order {
       orderDate = json['orderDate'] as String;
     }
     
+    final isCancelled = _parseCancelled(json);
+    if (isCancelled) {
+      orderStatus = 'cancelled';
+    }
+
     print('[DEBUG] Order.fromJson: Номер заказа: $orderNumber');
     print('[DEBUG] Order.fromJson: Метод оплаты: $paymentMethod');
     print('[DEBUG] Order.fromJson: Дата: $orderDate');
+    print('[DEBUG] Order.fromJson: Отменен: $isCancelled');
     
     return Order(
       id: orderId,
       orderNumber: orderNumber,
       status: orderStatus,
+      isCancelled: isCancelled,
       paymentMethod: paymentMethod,
       paymentStatus: json['payment_done'] == 1 ? 'paid' : 'unpaid',
-      deliveryStatus: orderStatus,
+      deliveryStatus: isCancelled ? 'cancelled' : orderStatus,
       totalAmount: total,
       orderDate: orderDate,
       notes: json['notes'] as String?,
@@ -211,11 +222,45 @@ class Order {
     );
   }
 
+  static bool _parseCancelled(Map<String, dynamic> json) {
+    final cancelled = json['cancelled'];
+    if (cancelled == 1 || cancelled == true || cancelled == '1') {
+      return true;
+    }
+    if (json['cancellation'] != null && json['cancellation'] is Map) {
+      return true;
+    }
+    return false;
+  }
+
+  Order copyWith({
+    String? status,
+    bool? isCancelled,
+    String? deliveryStatus,
+  }) {
+    final cancelled = isCancelled ?? this.isCancelled;
+    return Order(
+      id: id,
+      orderNumber: orderNumber,
+      status: status ?? (cancelled ? 'cancelled' : this.status),
+      isCancelled: cancelled,
+      paymentMethod: paymentMethod,
+      paymentStatus: paymentStatus,
+      deliveryStatus: deliveryStatus ?? (cancelled ? 'cancelled' : this.deliveryStatus),
+      totalAmount: totalAmount,
+      orderDate: orderDate,
+      notes: notes,
+      address: address,
+      items: items,
+    );
+  }
+
   Map<String, dynamic> toJson() {
     return {
       'id': id,
       'order_number': orderNumber,
       'status': status,
+      'cancelled': isCancelled ? 1 : 0,
       'payment_method': paymentMethod,
       'payment_status': paymentStatus,
       'delivery_status': deliveryStatus,
@@ -229,6 +274,9 @@ class Order {
 
   // Получить текущий статус для отображения
   String get displayStatus {
+    if (isCancelled) {
+      return 'Отменено';
+    }
     switch (status.toLowerCase()) {
       case 'pending':
         return 'В ожидании';
@@ -249,6 +297,9 @@ class Order {
 
   // Получить статус доставки для отображения
   String get displayDeliveryStatus {
+    if (isCancelled) {
+      return 'Отменено';
+    }
     switch (deliveryStatus.toLowerCase()) {
       case 'pending':
         return 'В ожидании';
@@ -295,10 +346,16 @@ class Order {
     }
   }
 
-  // Проверить, можно ли отменить заказ
+  // Проверить, можно ли отменить заказ (сервер разрешает только pending)
   bool get canCancel {
-    return status.toLowerCase() == 'pending' || status.toLowerCase() == 'confirmed';
+    if (isCancelled) return false;
+    final normalized = status.toLowerCase();
+    return normalized == 'pending' ||
+        normalized == 'в ожидании' ||
+        normalized == '1';
   }
+
+  bool get canRepeatOrder => isCancelled;
 }
 
 class OrderAddress {
@@ -352,6 +409,7 @@ class OrderAddress {
 class OrderItem {
   final int id;
   final int productId;
+  final int? inventoryId;
   final String name;
   final String? image;
   final int quantity;
@@ -363,6 +421,7 @@ class OrderItem {
   OrderItem({
     required this.id,
     required this.productId,
+    this.inventoryId,
     required this.name,
     this.image,
     required this.quantity,
@@ -445,9 +504,19 @@ class OrderItem {
       }
     }
 
+    int? inventoryId;
+    if (json['inventory_id'] is int) {
+      inventoryId = json['inventory_id'] as int;
+    } else if (json['inventory_id'] is String) {
+      inventoryId = int.tryParse(json['inventory_id'] as String);
+    } else if (json['updated_inventory']?['id'] is int) {
+      inventoryId = json['updated_inventory']['id'] as int;
+    }
+
     return OrderItem(
       id: itemId,
       productId: prodId,
+      inventoryId: inventoryId,
       name: json['flash_product']?['title'] as String? 
           ?? json['product']?['title'] as String? 
           ?? json['name'] as String? 
@@ -466,6 +535,7 @@ class OrderItem {
     return {
       'id': id,
       'product_id': productId,
+      if (inventoryId != null) 'inventory_id': inventoryId,
       'name': name,
       'image': image,
       'quantity': quantity,

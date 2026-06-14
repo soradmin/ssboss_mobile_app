@@ -3,9 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../../theme.dart';
-import '../../../core/widgets/bottom_navigation_bar.dart';
+import '../../../core/date_formatter.dart';
 import '../models/order.dart';
 import '../repo/order_api.dart';
+import '../order_action_limit_service.dart';
 import '../../catalog/repo/catalog_api.dart';
 import '../../catalog/models/product.dart';
 import '../../../core/result.dart';
@@ -25,6 +26,8 @@ class OrderDetailsScreen extends ConsumerStatefulWidget {
 class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
   Order? _order;
   bool _isLoading = true;
+  bool _isRepeatingOrder = false;
+  int _remainingActions = OrderActionLimitService.maxActionsPerOrder;
   String? _errorMessage;
 
   @override
@@ -55,10 +58,12 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
     final result = await orderApi.getOrderDetails(widget.orderId);
 
     result.when(
-      ok: (order) {
+      ok: (order) async {
         print('[DEBUG] OrderDetailsScreen: Заказ успешно загружен, ID: ${order.id}, номер: ${order.orderNumber}');
+        final remaining = await OrderActionLimitService.getRemainingActions(order.id);
         setState(() {
           _order = order;
+          _remainingActions = remaining;
           _isLoading = false;
         });
       },
@@ -98,14 +103,20 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
       final result = await orderApi.cancelOrder(_order!.id);
 
       result.when(
-        ok: (_) {
+        ok: (_) async {
+          final remaining = await OrderActionLimitService.getRemainingActions(_order!.id);
+          setState(() {
+            _order = _order!.copyWith(isCancelled: true);
+            _remainingActions = remaining;
+          });
+          if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Заказ отменен'),
               backgroundColor: Colors.green,
             ),
           );
-          _loadOrderDetails(); // Обновляем данные
+          _loadOrderDetails();
         },
         err: (error) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -118,6 +129,81 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
       );
     }
   }
+
+  Future<void> _repeatOrder() async {
+    if (_order == null || _isRepeatingOrder) return;
+
+    if (_remainingActions <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Лимит исчерпан: отменить или повторить этот заказ можно не более 3 раз'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Повторить заказ'),
+        content: Text(
+          'Товары из заказа будут добавлены в корзину.\n'
+          'Осталось попыток: $_remainingActions из ${OrderActionLimitService.maxActionsPerOrder}',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Отмена'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('В корзину'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _isRepeatingOrder = true);
+
+    final orderApi = ref.read(orderApiProvider);
+    final result = await orderApi.repeatOrder(_order!);
+
+    if (!mounted) return;
+
+    setState(() => _isRepeatingOrder = false);
+
+    result.when(
+      ok: (addedCount) async {
+        final remaining = await OrderActionLimitService.getRemainingActions(_order!.id);
+        setState(() => _remainingActions = remaining);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('В корзину добавлено товаров: $addedCount'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        context.go('/cart');
+      },
+      err: (error) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(error),
+            backgroundColor: Colors.red,
+          ),
+        );
+      },
+    );
+  }
+
+  bool get _canCancelOrder =>
+      _order != null && _order!.canCancel && _remainingActions > 0;
+
+  bool get _canRepeatOrder =>
+      _order != null && _order!.canRepeatOrder && _remainingActions > 0;
 
   @override
   Widget build(BuildContext context) {
@@ -310,6 +396,10 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _buildOrderHeader(),
+            if (_order!.isCancelled) ...[
+              const SizedBox(height: 16),
+              _buildCancelledBanner(),
+            ],
             const SizedBox(height: 20),
             _buildOrderStatus(),
             const SizedBox(height: 20),
@@ -322,9 +412,17 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
             _buildOrderItems(),
             const SizedBox(height: 20),
             _buildOrderSummary(),
-            if (_order!.canCancel) ...[
+            if (_canCancelOrder) ...[
               const SizedBox(height: 24),
               _buildCancelButton(),
+            ],
+            if (_canRepeatOrder) ...[
+              const SizedBox(height: 24),
+              _buildRepeatOrderButton(),
+            ],
+            if (_order!.isCancelled && !_canRepeatOrder) ...[
+              const SizedBox(height: 16),
+              _buildLimitReachedInfo(),
             ],
             const SizedBox(height: 20),
           ],
@@ -451,18 +549,13 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
   }
 
   String _formatDate(String dateString) {
-    try {
-      final date = DateTime.parse(dateString);
-      return '${date.day}.${date.month}.${date.year}';
-    } catch (e) {
-      return dateString;
-    }
+    return AppDateFormatter.formatDateString(dateString);
   }
 
   Widget _buildOrderStatus() {
-    final currentStatus = _order!.status;
+    final currentStatus = _order!.effectiveStatus;
     final statusIcon = _getStatusIcon(currentStatus);
-    final statusText = _order!.displayStatus; // Используем геттер из модели Order, как в списке заказов
+    final statusText = _order!.displayStatus;
     final statusColor = _getStatusColor(currentStatus);
     
     return Container(
@@ -523,60 +616,71 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 16),
-            InkWell(
-              onTap: () => _showStatusTimeline(),
-              borderRadius: BorderRadius.circular(12),
-              child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF9C27B0).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(
-                      Icons.timeline,
-                      color: Color(0xFF9C27B0),
-                      size: 18,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Посмотреть этапы',
-                      style: TextStyle(
-                        color: const Color(0xFF9C27B0),
-                        fontWeight: FontWeight.w600,
-                        fontSize: 14,
+            if (!_order!.isCancelled) ...[
+              const SizedBox(height: 16),
+              InkWell(
+                onTap: () => _showStatusTimeline(),
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF9C27B0).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(
+                        Icons.timeline,
+                        color: Color(0xFF9C27B0),
+                        size: 18,
                       ),
-                    ),
-                  ],
+                      const SizedBox(width: 8),
+                      Text(
+                        'Посмотреть этапы',
+                        style: TextStyle(
+                          color: const Color(0xFF9C27B0),
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
+            ],
           ],
         ),
       ),
     );
   }
 
-  String _getStatusDisplayName(String status) {
-    switch (status.toLowerCase()) {
-      case 'pending':
-        return 'В ожидании';
-      case 'confirmed':
-        return 'Подтверждено';
-      case 'picked_up':
-      case 'picked up':
-        return 'В работе';
-      case 'on_the_way':
-      case 'on the way':
-        return 'В пути';
-      case 'delivered':
-        return 'Доставлено';
-      default:
-        return status;
-    }
+  Widget _buildCancelledBanner() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFEBEE),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFEF9A9A)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.cancel_outlined, color: Color(0xFFD32F2F)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              'Этот заказ был отменен',
+              style: TextStyle(
+                color: Colors.red[800],
+                fontWeight: FontWeight.w600,
+                fontSize: 15,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   IconData _getStatusIcon(String status) {
@@ -593,6 +697,8 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
         return Icons.local_shipping;
       case 'delivered':
         return Icons.done_all;
+      case 'cancelled':
+        return Icons.cancel_outlined;
       default:
         return Icons.help;
     }
@@ -807,8 +913,8 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
           iconColor: const Color(0xFF2196F3),
           iconBackground: const Color(0xFF2196F3).withOpacity(0.1),
           label: 'Статус доставки',
-          value: _order!.displayStatus,
-          valueColor: _getStatusColor(_order!.displayStatus),
+          value: _order!.displayDeliveryStatus,
+          valueColor: _getStatusColor(_order!.effectiveStatus),
         ),
         const SizedBox(height: 12),
         _buildInfoCard(
@@ -1396,8 +1502,8 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              Color(0xFFC94F4F), // Темно-красный
-              Color(0xFFE85A5A), // Светло-красный
+              Color(0xFFC94F4F),
+              Color(0xFFE85A5A),
             ],
             stops: [0.0, 1.0],
           ),
@@ -1419,6 +1525,75 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildRepeatOrderButton() {
+    return Center(
+      child: Column(
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color(0xFF9C27B0),
+                  Color(0xFFE040FB),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: ElevatedButton(
+              onPressed: _isRepeatingOrder ? null : _repeatOrder,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.transparent,
+                shadowColor: Colors.transparent,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: _isRepeatingOrder
+                  ? const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Text(
+                      'Повторить заказ',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Осталось попыток: $_remainingActions из ${OrderActionLimitService.maxActionsPerOrder}',
+            style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLimitReachedInfo() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.orange[50],
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.orange[200]!),
+      ),
+      child: Text(
+        'Лимит отмены/повтора для этого заказа исчерпан (максимум ${OrderActionLimitService.maxActionsPerOrder} раза).',
+        textAlign: TextAlign.center,
+        style: TextStyle(color: Colors.orange[900], fontSize: 13),
       ),
     );
   }

@@ -392,8 +392,8 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 2,
           childAspectRatio: ProductGridCard.gridChildAspectRatio,
-          crossAxisSpacing: 12,
-          mainAxisSpacing: 12,
+          crossAxisSpacing: ProductGridCard.gridCrossAxisSpacing,
+          mainAxisSpacing: ProductGridCard.gridMainAxisSpacing,
         ),
         itemCount: _products.length,
         itemBuilder: (context, index) {

@@ -1,3 +1,5 @@
+import '../../../core/date_formatter.dart';
+
 class Store {
   final int id;
   final String name;
@@ -132,14 +134,16 @@ class Store {
       id: storeId,
       name: finalName,
       slug: json['slug'] as String? ?? '',
-      description: json['description'] as String?,
+      description: json['description'] as String? ?? json['meta_description'] as String?,
       logo: json['logo'] as String? ?? json['image'] as String?,
       banner: json['banner'] as String?,
       rating: storeRating,
       totalProducts: productsCount,
       followersCount: followers,
       memberSince: json['member_since'] as String? ?? json['created_at'] as String? ?? '',
-      isFollowing: json['is_following'] == true || json['is_following'] == 1,
+      isFollowing: json['is_following'] == true ||
+          json['is_following'] == 1 ||
+          json['following'] == true,
       website: json['website'] as String?,
       email: json['email'] as String?,
       phone: json['phone'] as String?,
@@ -201,12 +205,7 @@ class Store {
 
   // Получить отформатированную дату регистрации
   String get formattedMemberSince {
-    try {
-      final date = DateTime.parse(memberSince);
-      return '${date.day}.${date.month}.${date.year}';
-    } catch (e) {
-      return memberSince;
-    }
+    return AppDateFormatter.formatDateString(memberSince);
   }
 
   // Создать копию с обновленным статусом подписки

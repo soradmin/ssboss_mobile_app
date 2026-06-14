@@ -10,7 +10,7 @@ import 'package:video_player/video_player.dart';
 import 'package:chewie/chewie.dart'; 
 import 'package:shimmer/shimmer.dart';
 import 'package:carousel_slider/carousel_controller.dart' as cs;
-import '../../cart/controllers/cart_controller.dart';
+import '../../../core/date_formatter.dart';
 import '../../cart/models/cart_item.dart';
 import '../models/product.dart';
 import '../models/review.dart';
@@ -1199,23 +1199,27 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
       fontWeight: FontWeight.w500,
     );
 
-    return Text.rich(
-      TextSpan(
-        style: previewStyle,
-        children: [
-          if (preview.isNotEmpty) TextSpan(text: '$preview '),
-          WidgetSpan(
-            alignment: PlaceholderAlignment.baseline,
-            baseline: TextBaseline.alphabetic,
-            child: GestureDetector(
-              onTap: () => _showProductInfoModal(context),
-              child: const Text('о товаре', style: linkStyle),
-            ),
+    // На iOS WidgetSpan внутри Text.rich с maxLines/ellipsis часто не рисуется.
+    // Ссылку выносим отдельно — она всегда видна на обеих платформах.
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (preview.isNotEmpty)
+          Text(
+            preview,
+            style: previewStyle,
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
           ),
-        ],
-      ),
-      maxLines: 4,
-      overflow: TextOverflow.ellipsis,
+        GestureDetector(
+          onTap: () => _showProductInfoModal(context),
+          behavior: HitTestBehavior.opaque,
+          child: Padding(
+            padding: EdgeInsets.only(top: preview.isNotEmpty ? 4 : 0),
+            child: const Text('о товаре', style: linkStyle),
+          ),
+        ),
+      ],
     );
   }
 
@@ -2114,7 +2118,7 @@ class _ReviewsModalState extends ConsumerState<_ReviewsModal> {
       } else if (difference.inDays < 365) {
         return '${(difference.inDays / 30).floor()} мес. назад';
       } else {
-        return '${date.day}.${date.month}.${date.year}';
+        return AppDateFormatter.formatDate(date);
       }
     } catch (e) {
       return dateStr;

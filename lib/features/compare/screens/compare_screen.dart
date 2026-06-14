@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:cached_network_image/cached_network_image.dart';
+
 import '../../../core/widgets/bottom_navigation_bar.dart';
-import '../../catalog/models/product.dart';
-import '../../catalog/widgets/product_price_row.dart';
-import '../repo/compare_api.dart';
 import '../../../theme.dart';
-import '../../../core/config.dart'; // AppConfig
+import '../../catalog/models/product.dart';
+import '../../catalog/repo/catalog_api.dart';
+import '../../catalog/widgets/product_grid_card.dart';
+import '../repo/compare_api.dart';
+import '../widgets/compare_table_widget.dart';
 
 class CompareScreen extends ConsumerStatefulWidget {
   const CompareScreen({super.key});
@@ -18,7 +19,9 @@ class CompareScreen extends ConsumerStatefulWidget {
 
 class _CompareScreenState extends ConsumerState<CompareScreen> {
   List<Product> _products = [];
+  List<Product> _detailedProducts = [];
   bool _isLoading = true;
+  bool _isLoadingDetails = false;
   String? _error;
 
   @override
@@ -31,17 +34,21 @@ class _CompareScreenState extends ConsumerState<CompareScreen> {
     setState(() {
       _isLoading = true;
       _error = null;
+      _detailedProducts = [];
     });
 
     final compareApi = ref.read(compareApiProvider);
     final result = await compareApi.getCompareProducts();
 
     result.when(
-      ok: (products) {
+      ok: (products) async {
         setState(() {
           _products = products;
           _isLoading = false;
         });
+        if (products.length >= 2) {
+          await _loadDetailedProducts(products);
+        }
       },
       err: (error) {
         setState(() {
@@ -52,74 +59,82 @@ class _CompareScreenState extends ConsumerState<CompareScreen> {
     );
   }
 
+  Future<void> _loadDetailedProducts(List<Product> products) async {
+    setState(() => _isLoadingDetails = true);
+
+    final catalogApi = CatalogApi();
+    final detailed = <Product>[];
+
+    for (final product in products) {
+      final result = await catalogApi.productById(product.id);
+      result.when(
+        ok: (fullProduct) => detailed.add(fullProduct),
+        err: (_) => detailed.add(product),
+      );
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _detailedProducts = detailed;
+      _isLoadingDetails = false;
+    });
+  }
+
+  List<Product> get _productsForComparison =>
+      _detailedProducts.isNotEmpty ? _detailedProducts : _products;
+
   Future<void> _removeFromCompare(Product product) async {
     final compareApi = ref.read(compareApiProvider);
     final result = await compareApi.removeFromCompare(product.id);
 
     result.when(
       ok: (success) {
-        if (success) {
-          // Плавная анимация удаления
-          setState(() {
-            _products.removeWhere((p) => p.id == product.id);
-          });
-          
-          // Показать уведомление с анимацией
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Row(
-                children: [
-                  const Icon(
-                    Icons.compare_arrows_rounded,
-                    color: Colors.white,
-                    size: 20,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      '${product.name} удален из сравнений',
-                      style: const TextStyle(fontSize: 14),
-                    ),
-                  ),
-                ],
-              ),
-              backgroundColor: Colors.orange[600],
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              margin: const EdgeInsets.all(16),
-              duration: const Duration(seconds: 2),
-            ),
-          );
+        if (!success) return;
+
+        setState(() {
+          _products.removeWhere((p) => p.id == product.id);
+          _detailedProducts.removeWhere((p) => p.id == product.id);
+        });
+
+        if (_products.length >= 2 && _detailedProducts.length < _products.length) {
+          _loadDetailedProducts(_products);
         }
-      },
-      err: (error) {
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Row(
               children: [
                 const Icon(
-                  Icons.error_outline_rounded,
+                  Icons.compare_arrows_rounded,
                   color: Colors.white,
                   size: 20,
                 ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Ошибка: $error',
+                    '${product.name} удален из сравнений',
                     style: const TextStyle(fontSize: 14),
                   ),
                 ),
               ],
             ),
-            backgroundColor: Colors.red[600],
+            backgroundColor: Colors.orange[600],
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
             ),
             margin: const EdgeInsets.all(16),
-            duration: const Duration(seconds: 3),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      },
+      err: (error) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Ошибка: $error'),
+            backgroundColor: Colors.red[600],
+            behavior: SnackBarBehavior.floating,
+            margin: const EdgeInsets.all(16),
           ),
         );
       },
@@ -130,9 +145,9 @@ class _CompareScreenState extends ConsumerState<CompareScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    
+
     return Scaffold(
-      backgroundColor: isDark ? Colors.grey[900] : Colors.grey[50],
+      backgroundColor: isDark ? Colors.grey[900] : backgroundColor,
       appBar: AppBar(
         elevation: 0,
         flexibleSpace: Container(
@@ -141,8 +156,8 @@ class _CompareScreenState extends ConsumerState<CompareScreen> {
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                Color(0xFF9C27B0), // Основной фиолетовый
-                Color(0xFFE040FB), // Светло-фиолетовый
+                Color(0xFF9C27B0),
+                Color(0xFFE040FB),
               ],
               stops: [0.0, 1.0],
             ),
@@ -176,9 +191,89 @@ class _CompareScreenState extends ConsumerState<CompareScreen> {
                 ? _buildErrorState()
                 : _products.isEmpty
                     ? _buildEmptyState()
-                    : _buildProductsGrid(),
+                    : _buildContent(),
       ),
       bottomNavigationBar: const BottomNavigationBarWidget(selectedIndex: 1),
+    );
+  }
+
+  Widget _buildContent() {
+    if (_products.length == 1) {
+      return _buildSingleProductView();
+    }
+
+    return Stack(
+      children: [
+        RefreshIndicator(
+          onRefresh: _loadCompareProducts,
+          color: primaryColor,
+          child: CompareTableWidget(
+            products: _productsForComparison,
+            onRemove: _removeFromCompare,
+          ),
+        ),
+        if (_isLoadingDetails)
+          const Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: LinearProgressIndicator(minHeight: 2),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildSingleProductView() {
+    final product = _products.first;
+
+    return RefreshIndicator(
+      onRefresh: _loadCompareProducts,
+      color: primaryColor,
+      child: ListView(
+        padding: const EdgeInsets.all(12),
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: Colors.blue.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.blue.withValues(alpha: 0.2)),
+            ),
+            child: const Row(
+              children: [
+                Icon(Icons.info_outline_rounded, color: Colors.blue, size: 20),
+                SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Добавьте ещё один товар, чтобы сравнить цену, рейтинг и характеристики',
+                    style: TextStyle(fontSize: 13, height: 1.35),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          ProductGridCard(
+            key: ValueKey(product.id),
+            product: product,
+            initiallyInCompare: true,
+            onCompareChanged: (isInCompare) {
+              if (!isInCompare) {
+                setState(() => _products.clear());
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('${product.name} удален из сравнений'),
+                    backgroundColor: Colors.orange[600],
+                    behavior: SnackBarBehavior.floating,
+                    margin: const EdgeInsets.all(16),
+                  ),
+                );
+              }
+            },
+          ),
+        ],
+      ),
     );
   }
 
@@ -204,7 +299,7 @@ class _CompareScreenState extends ConsumerState<CompareScreen> {
   Widget _buildErrorState() {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    
+
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24.0),
@@ -214,7 +309,7 @@ class _CompareScreenState extends ConsumerState<CompareScreen> {
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: isDark ? Colors.red[900]?.withOpacity(0.3) : Colors.red[50],
+                color: isDark ? Colors.red[900]?.withValues(alpha: 0.3) : Colors.red[50],
                 shape: BoxShape.circle,
               ),
               child: Icon(
@@ -246,8 +341,8 @@ class _CompareScreenState extends ConsumerState<CompareScreen> {
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                   colors: [
-                    Color(0xFF9C27B0), // Основной фиолетовый
-                    Color(0xFFE040FB), // Светло-фиолетовый
+                    Color(0xFF9C27B0),
+                    Color(0xFFE040FB),
                   ],
                   stops: [0.0, 1.0],
                 ),
@@ -277,7 +372,7 @@ class _CompareScreenState extends ConsumerState<CompareScreen> {
   Widget _buildEmptyState() {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    
+
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24.0),
@@ -287,7 +382,7 @@ class _CompareScreenState extends ConsumerState<CompareScreen> {
             Container(
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
-                color: isDark ? Colors.blue[900]?.withOpacity(0.3) : Colors.blue[50],
+                color: isDark ? Colors.blue[900]?.withValues(alpha: 0.3) : Colors.blue[50],
                 shape: BoxShape.circle,
               ),
               child: Icon(
@@ -320,8 +415,8 @@ class _CompareScreenState extends ConsumerState<CompareScreen> {
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                   colors: [
-                    Color(0xFF9C27B0), // Основной фиолетовый
-                    Color(0xFFE040FB), // Светло-фиолетовый
+                    Color(0xFF9C27B0),
+                    Color(0xFFE040FB),
                   ],
                   stops: [0.0, 1.0],
                 ),
@@ -343,252 +438,6 @@ class _CompareScreenState extends ConsumerState<CompareScreen> {
               ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildProductsGrid() {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    
-    return RefreshIndicator(
-      onRefresh: _loadCompareProducts,
-      color: primaryColor,
-      child: GridView.builder(
-        padding: const EdgeInsets.all(12),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          childAspectRatio: 0.58, // Как на экране "Избранное"
-          crossAxisSpacing: 12,
-          mainAxisSpacing: 12,
-        ),
-        itemCount: _products.length,
-        itemBuilder: (context, index) {
-          final product = _products[index];
-          return AnimatedSwitcher(
-            duration: const Duration(milliseconds: 300),
-            child: _buildProductCard(product, isDark),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildProductCard(Product product, bool isDark) {
-    const purple = Color(0xFF7B3FE4);
-    final cardHeight = MediaQuery.of(context).size.width / 2 * 1.72; // Аспект 0.58, как на экране "Избранное"
-
-    return Hero(
-      tag: 'compare_product_${product.id}',
-      child: RepaintBoundary(
-        child: InkWell(
-          onTap: () => context.push('/product/${product.id}', extra: product),
-          borderRadius: BorderRadius.circular(12),
-          child: Card(
-            elevation: 2,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: SizedBox(
-              height: cardHeight,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Изображение товара
-                  Expanded(
-                    flex: 3,
-                    child: Stack(
-                      children: [
-                        ClipRRect(
-                          borderRadius: const BorderRadius.vertical(
-                            top: Radius.circular(12),
-                          ),
-                          child: (product.image == null || product.image!.isEmpty)
-                              ? Container(
-                                  decoration: BoxDecoration(
-                                    gradient: LinearGradient(
-                                      colors: [
-                                        const Color(0xFF6A1B9A).withOpacity(0.1),
-                                        const Color(0xFF9C27B0).withOpacity(0.1),
-                                      ],
-                                    ),
-                                  ),
-                                  child: Center(
-                                    child: Icon(
-                                      Icons.image_outlined,
-                                      color: purple.withOpacity(0.5),
-                                      size: 48,
-                                    ),
-                                  ),
-                                )
-                              : CachedNetworkImage(
-                                  imageUrl: AppConfig.imageUrl(product.image!),
-                                  fit: BoxFit.cover,
-                                  width: double.infinity,
-                                  height: double.infinity,
-                                  memCacheHeight: 220,
-                                  memCacheWidth: 220,
-                                  maxHeightDiskCache: 220,
-                                  maxWidthDiskCache: 220,
-                                  placeholder: (context, url) => Container(
-                                    decoration: BoxDecoration(
-                                      gradient: LinearGradient(
-                                        colors: [
-                                          const Color(0xFF6A1B9A).withOpacity(0.1),
-                                          const Color(0xFF9C27B0).withOpacity(0.1),
-                                        ],
-                                      ),
-                                    ),
-                                    child: Center(
-                                      child: Icon(
-                                        Icons.image_outlined,
-                                        color: purple.withOpacity(0.5),
-                                        size: 48,
-                                      ),
-                                    ),
-                                  ),
-                                  errorWidget: (context, url, error) => Container(
-                                    decoration: BoxDecoration(
-                                      gradient: LinearGradient(
-                                        colors: [
-                                          const Color(0xFF6A1B9A).withOpacity(0.1),
-                                          const Color(0xFF9C27B0).withOpacity(0.1),
-                                        ],
-                                      ),
-                                    ),
-                                    child: Center(
-                                      child: Icon(
-                                        Icons.image_outlined,
-                                        color: purple.withOpacity(0.5),
-                                        size: 48,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                        ),
-
-                        // Бейдж товара
-                        if (product.badge != null && product.badge!.isNotEmpty)
-                          Positioned(
-                            top: 6,
-                            left: 6,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 6,
-                                vertical: 3,
-                              ),
-                              decoration: BoxDecoration(
-                                color: purple,
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Text(
-                                product.badge!,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ),
-
-                        // Кнопка удаления из сравнения
-                        Positioned(
-                          top: 8,
-                          right: 8,
-                          child: Material(
-                            color: Colors.transparent,
-                            child: InkWell(
-                              onTap: () => _removeFromCompare(product),
-                              borderRadius: BorderRadius.circular(20),
-                              child: Container(
-                                width: 36,
-                                height: 36,
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                    color: Colors.grey[300]!,
-                                    width: 1,
-                                  ),
-                                ),
-                                child: const Icon(
-                                  Icons.compare_arrows_rounded,
-                                  color: Colors.blue,
-                                  size: 20,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  // Цена (сразу после изображения)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    child: ProductPriceRow.fromProduct(
-                      product,
-                      priceFontSize: 18,
-                    ),
-                  ),
-
-                  // Информация о товаре
-                  Flexible(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(8, 2, 8, 2),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            product.name,
-                            style: const TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w500,
-                            ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          if (product.rating > 0)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 2),
-                              child: Row(
-                                children: [
-                                  const Icon(
-                                    Icons.star,
-                                    size: 11,
-                                    color: Colors.amber,
-                                  ),
-                                  const SizedBox(width: 2),
-                                  Text(
-                                    product.rating.toStringAsFixed(1),
-                                    style: const TextStyle(fontSize: 9),
-                                  ),
-                                  if (product.reviewCount > 0) ...[
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      '(${product.reviewCount})',
-                                      style: TextStyle(
-                                        fontSize: 9,
-                                        color: Colors.grey[600],
-                                      ),
-                                    ),
-                                  ],
-                                ],
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
         ),
       ),
     );

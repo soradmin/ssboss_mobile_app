@@ -139,9 +139,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   bool _tabLoading = false; // Загрузка при переключении вкладок
   int _currentPage = 1;
   Map<String, dynamic>? _profileData;
-  static const int _itemsPerPage = 50;
-  /// Первая страница (~50 товаров) — быстрый старт; полный каталог грузится в категориях.
-  static const int _homeProductsMaxPages = 1;
+  static const int _newProductsPageSizeHint = 20;
+  int _newProductsPage = 1;
+  bool _newProductsHasMore = true;
+  bool _newProductsLoadingMore = false;
+  final ScrollController _scrollController = ScrollController();
   final TextEditingController _searchController = TextEditingController();
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
@@ -175,6 +177,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     }
     _loadProfile();
     _animationController.forward();
+    _scrollController.addListener(_onHomeScroll);
     
     // Синхронизируем корзину при возвращении в приложение
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -184,9 +187,91 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
   @override
   void dispose() {
+    _scrollController.removeListener(_onHomeScroll);
+    _scrollController.dispose();
     _searchController.dispose();
     _animationController.dispose();
     super.dispose();
+  }
+
+  void _onHomeScroll() {
+    if (_selectedTab != 'Новинки') return;
+    if (_newProductsLoadingMore || !_newProductsHasMore || _loading) return;
+
+    final position = _scrollController.position;
+    if (!position.hasPixels || !position.hasContentDimensions) return;
+    if (position.pixels < position.maxScrollExtent - 500) return;
+
+    _loadMoreNewProducts();
+  }
+
+  void _resetNewProductsPagination() {
+    _newProductsPage = 1;
+    _newProductsHasMore = true;
+    _newProductsLoadingMore = false;
+  }
+
+  bool _hasMoreNewProductsBatch(List<Product> batch) {
+    return batch.isNotEmpty && batch.length >= _newProductsPageSizeHint;
+  }
+
+  List<Product> _mergeNewProducts(List<Product> current, List<Product> batch) {
+    if (batch.isEmpty) return current;
+    final existingIds = current.map((p) => p.id).toSet();
+    final uniqueBatch = batch.where((p) => !existingIds.contains(p.id)).toList();
+    if (uniqueBatch.isEmpty) return current;
+    return [...current, ...uniqueBatch];
+  }
+
+  Future<Result<List<Product>>> _fetchNewProductsPage(int page) {
+    return _api.products(page: page);
+  }
+
+  Future<void> _applyFirstNewProductsPage(List<Product> batch) async {
+    final profile = await UserPreferenceService.instance.loadProfile();
+    final personalized = UserPreferenceService.personalizeProducts(batch, profile);
+    if (!mounted) return;
+    setState(() {
+      _newProducts = personalized;
+      _products = personalized;
+      _newProductsPage = 1;
+      _newProductsHasMore = _hasMoreNewProductsBatch(batch);
+      _newProductsLoadingMore = false;
+    });
+  }
+
+  Future<void> _loadMoreNewProducts() async {
+    if (_selectedTab != 'Новинки' ||
+        _newProductsLoadingMore ||
+        !_newProductsHasMore ||
+        _loading) {
+      return;
+    }
+
+    setState(() => _newProductsLoadingMore = true);
+
+    final nextPage = _newProductsPage + 1;
+    final result = await _fetchNewProductsPage(nextPage);
+
+    if (!mounted) return;
+
+    if (result is Ok<List<Product>>) {
+      final batch = result.value;
+      setState(() {
+        _newProducts = _mergeNewProducts(_newProducts, batch);
+        _products = _newProducts;
+        _newProductsPage = nextPage;
+        _newProductsHasMore = _hasMoreNewProductsBatch(batch);
+        _newProductsLoadingMore = false;
+      });
+      print(
+        '[DEBUG] _loadMoreNewProducts: страница $nextPage, +${batch.length}, '
+        'всего ${_newProducts.length}, hasMore=$_newProductsHasMore',
+      );
+    } else {
+      setState(() => _newProductsLoadingMore = false);
+      print('[DEBUG] _loadMoreNewProducts: ошибка ${(result as Err).message}');
+    }
   }
 
   // Метод для обновления страницы по свайпу
@@ -244,6 +329,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     setState(() {
       _newProducts = personalized;
       _products = personalized;
+      _newProductsPage = 1;
+      _newProductsHasMore = _hasMoreNewProductsBatch(cache.newProducts);
+      _newProductsLoadingMore = false;
       _recommendedProducts = cache.recommendedProducts;
       _trendingProducts = cache.trendingProducts;
       _discountedProducts = cache.discountedProducts;
@@ -266,8 +354,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     }
     
     try {
-    // Слайдеры, главная, бренды, Flash Sale и первая страница товаров (Новинки)
-    final productsFuture = _loadAllProducts(maxPages: _homeProductsMaxPages);
+    // Слайдеры, главная, бренды, Flash Sale и первая страница «Новинки»
+    _resetNewProductsPagination();
+    final productsFuture = _fetchNewProductsPage(1);
     final slidersFuture = _api.getSliders();
     final homePageDataFuture = _api.getHomePageData();
     final brandsFuture = _api.getBrands(page: 1);
@@ -280,19 +369,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     final flashSaleRes = await flashSaleFuture;
     
     if (productsRes is Ok<List<Product>>) {
-        final profile = await UserPreferenceService.instance.loadProfile();
-        final allProducts = UserPreferenceService.personalizeProducts(
-          productsRes.value,
-          profile,
-        );
-        setState(() {
-          _newProducts = allProducts;
-          _products = allProducts;
-          print('[DEBUG] _load: Установлено _newProducts = ${_newProducts.length} товаров');
-        });
+        await _applyFirstNewProductsPage(productsRes.value);
         print(
-          '[DEBUG] Загружено ${allProducts.length} товаров (Новинки), '
-          'персонализация: ${profile.hasEnoughData}',
+          '[DEBUG] Загружено ${productsRes.value.length} товаров (Новинки, стр. 1), '
+          'hasMore=$_newProductsHasMore',
         );
     } else {
       final msg = (productsRes as Err).message;
@@ -375,57 +455,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     }
   }
 
-  // Загрузка товаров постранично (для вкладки «Новинки»)
-  Future<Result<List<Product>>> _loadAllProducts({int maxPages = 1}) async {
-    List<Product> allProducts = [];
-    int page = 1;
-    bool hasMorePages = true;
-    
-    print('[DEBUG] _loadAllProducts: Начинаем загрузку всех товаров (Новинки)');
-    
-    while (hasMorePages) {
-      print('[DEBUG] _loadAllProducts: Загружаем страницу $page');
-      
-      final result = await _api.products(page: page);
-      
-      if (result is Ok<List<Product>>) {
-        final products = result.value;
-        print('[DEBUG] _loadAllProducts: Страница $page содержит ${products.length} товаров');
-        
-        if (products.isEmpty) {
-          hasMorePages = false;
-          print('[DEBUG] _loadAllProducts: Страница $page пуста, завершаем загрузку');
-        } else {
-          allProducts.addAll(products);
-          page++;
-          
-          if (page > maxPages) {
-            print('[DEBUG] _loadAllProducts: Достигнут лимит страниц ($maxPages)');
-            hasMorePages = false;
-          }
-        }
-      } else {
-        print('[DEBUG] _loadAllProducts: Ошибка загрузки страницы $page: ${(result as Err).message}');
-        hasMorePages = false;
-      }
-    }
-    
-    print('[DEBUG] _loadAllProducts: Загружено всего ${allProducts.length} товаров с ${page - 1} страниц');
-    return Ok(allProducts);
-  }
-
-  // Загрузка новинок (последние опубликованные товары)
+  // Первая страница «Новинки» (остальные — по скроллу)
   Future<void> _loadNewProducts() async {
-    print('[DEBUG] Загрузка новинок...');
-    final result = await _loadAllProducts();
+    print('[DEBUG] Загрузка новинок (страница 1)...');
+    _resetNewProductsPagination();
+    final result = await _fetchNewProductsPage(1);
     if (result is Ok<List<Product>>) {
-      final profile = await UserPreferenceService.instance.loadProfile();
-      setState(() {
-        _newProducts = UserPreferenceService.personalizeProducts(
-          result.value,
-          profile,
-        );
-      });
+      await _applyFirstNewProductsPage(result.value);
     }
   }
 
@@ -657,6 +693,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         backgroundColor: Colors.white,
         strokeWidth: 2.0,
         child: SingleChildScrollView(
+          controller: _scrollController,
           physics: const AlwaysScrollableScrollPhysics(
             parent: BouncingScrollPhysics(),
           ),
@@ -2268,8 +2305,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: crossAxisCount,
           childAspectRatio: ProductGridCard.gridChildAspectRatio,
-          crossAxisSpacing: 12,
-          mainAxisSpacing: 12,
+          crossAxisSpacing: ProductGridCard.gridCrossAxisSpacing,
+          mainAxisSpacing: ProductGridCard.gridMainAxisSpacing,
         ),
         itemCount: skeletonCount,
         itemBuilder: (context, index) => const ProductGridCardSkeleton(),
@@ -2328,8 +2365,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: crossAxisCount,
               childAspectRatio: ProductGridCard.gridChildAspectRatio,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
+              crossAxisSpacing: ProductGridCard.gridCrossAxisSpacing,
+              mainAxisSpacing: ProductGridCard.gridMainAxisSpacing,
             ),
             itemCount: productsBeforeSmallBanners.length,
             itemBuilder: (context, index) {
@@ -2356,8 +2393,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: crossAxisCount,
               childAspectRatio: ProductGridCard.gridChildAspectRatio,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
+              crossAxisSpacing: ProductGridCard.gridCrossAxisSpacing,
+              mainAxisSpacing: ProductGridCard.gridMainAxisSpacing,
             ),
             itemCount: productsBeforeLargeBanner.length,
             itemBuilder: (context, index) {
@@ -2384,8 +2421,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: crossAxisCount,
               childAspectRatio: ProductGridCard.gridChildAspectRatio,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
+              crossAxisSpacing: ProductGridCard.gridCrossAxisSpacing,
+              mainAxisSpacing: ProductGridCard.gridMainAxisSpacing,
             ),
             itemCount: productsAfterLargeBanner.length,
             itemBuilder: (context, index) {
@@ -2395,6 +2432,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 onAddToCart: _showAttributeSelectionBottomSheet,
               );
             },
+          ),
+
+        if (_selectedTab == 'Новинки' && _newProductsLoadingMore)
+          Padding(
+            padding: EdgeInsets.symmetric(vertical: loaderPadding),
+            child: const Center(
+              child: CircularProgressIndicator(color: Color(0xFF9C27B0)),
+            ),
           ),
       ],
     );

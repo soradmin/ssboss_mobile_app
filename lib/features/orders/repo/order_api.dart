@@ -5,7 +5,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/api_client.dart';
 import '../../../core/result.dart';
 import '../../auth/repo/auth_api.dart';
+import '../../cart/repo/cart_api.dart';
 import '../models/order.dart';
+import '../order_action_limit_service.dart';
 
 final orderApiProvider = Provider<OrderApi>((ref) {
   return OrderApi(dio);
@@ -287,82 +289,8 @@ class OrderApi {
           }
         }
         
-        // Преобразуем данные в объект Order
-        final orderNumber = orderData['order_number'] as String?;
-        print('[DEBUG] OrderApi.getOrderDetails: Номер заказа из локального хранилища: $orderNumber');
-        
-        // Парсим статус правильно (как в Order.fromJson)
-        String orderStatus;
-        if (orderData['status'] is String) {
-          orderStatus = orderData['status'] as String;
-        } else if (orderData['status'] is int) {
-          // Конвертируем числовой статус в строковый
-          final statusNum = orderData['status'] as int;
-          switch (statusNum) {
-            case 1:
-              orderStatus = 'pending';
-              break;
-            case 2:
-              orderStatus = 'confirmed';
-              break;
-            case 3:
-              orderStatus = 'picked_up';
-              break;
-            case 4:
-              orderStatus = 'on_the_way';
-              break;
-            case 5:
-              orderStatus = 'delivered';
-              break;
-            default:
-              orderStatus = 'pending';
-          }
-        } else {
-          orderStatus = 'pending';
-        }
-        
-        // Безопасное извлечение даты
-        String orderDateStr = '';
-        if (orderData['order_date'] is String) {
-          orderDateStr = orderData['order_date'] as String;
-        } else if (orderData['created_at'] is String) {
-          orderDateStr = orderData['created_at'] as String;
-        } else if (orderData['created'] is String) {
-          orderDateStr = orderData['created'] as String;
-        } else {
-          orderDateStr = DateTime.now().toIso8601String();
-        }
-        
-        // Безопасное извлечение суммы
-        double totalAmount = 0.0;
-        if (orderData['total_amount'] is double) {
-          totalAmount = orderData['total_amount'] as double;
-        } else if (orderData['total_amount'] is int) {
-          totalAmount = (orderData['total_amount'] as int).toDouble();
-        } else if (orderData['total_amount'] is String) {
-          totalAmount = double.tryParse(orderData['total_amount'] as String) ?? 0.0;
-        }
-        
-        final order = Order(
-          id: orderData['id'] ?? orderId,
-          orderNumber: orderNumber ?? 'N/A',
-          status: orderStatus,
-          paymentMethod: orderData['payment_method'] ?? 'cash_on_delivery',
-          paymentStatus: orderData['payment_status'] ?? 'unpaid',
-          deliveryStatus: orderStatus,
-          totalAmount: totalAmount,
-          orderDate: orderDateStr,
-          notes: orderData['notes'] ?? '',
-          address: null, // Пока не реализовано
-          items: (orderData['items'] as List<dynamic>? ?? []).map((item) {
-            // Обрабатываем изображение через OrderItem.fromJson для правильного парсинга
-            final orderItem = OrderItem.fromJson(item);
-            print('[DEBUG] OrderApi.getOrderDetails: Товар из локального хранилища: ${orderItem.name}, ID: ${orderItem.productId}, Изображение: ${orderItem.image}');
-            return orderItem;
-          }).toList(),
-        );
-        
-        print('[DEBUG] OrderApi.getOrderDetails: Заказ загружен: ${order.orderNumber}, статус: ${order.status}, displayStatus: ${order.displayStatus}, сумма: ${order.totalAmount}, дата: ${order.orderDate}, товаров: ${order.items.length}');
+        final order = Order.fromJson(orderData);
+        print('[DEBUG] OrderApi.getOrderDetails: Заказ загружен из локального хранилища: ${order.orderNumber}, отменен: ${order.isCancelled}, displayStatus: ${order.displayStatus}');
         return Ok(order);
       }
       
@@ -476,29 +404,129 @@ class OrderApi {
   }
 
   /// Отменить заказ
-  Future<Result<void>> cancelOrder(int orderId) async {
+  Future<Result<void>> cancelOrder(int orderId, {String? reason}) async {
     try {
       print('[DEBUG] OrderApi.cancelOrder: Отменяем заказ $orderId');
-      
-      final response = await _apiClient.post('/order/cancel', data: {
+
+      final payload = <String, dynamic>{
         'order_id': orderId,
-      });
-      
+        'title': 'Отмена заказа',
+        'message': reason?.trim().isNotEmpty == true
+            ? reason!.trim()
+            : 'Заказ отменен пользователем через мобильное приложение',
+      };
+
+      // Для гостевых заказов серверу нужен user_token
+      try {
+        final userTokenResult = await AuthApi.getUserToken();
+        userTokenResult.when(
+          ok: (token) => payload['user_token'] = token,
+          err: (_) {},
+        );
+      } catch (_) {}
+
+      final response = await _apiClient.post(
+        '/cancellation/cancel-order',
+        data: payload,
+        options: Options(headers: {'language': 'ru'}),
+      );
+
       print('[DEBUG] OrderApi.cancelOrder: HTTP статус = ${response.statusCode}');
       print('[DEBUG] OrderApi.cancelOrder: Ответ сервера = ${response.data}');
-      
+
       if (response.statusCode == 200) {
+        await OrderActionLimitService.recordAction(orderId);
+        await _markOrderCancelledLocally(orderId);
         return const Ok(null);
       }
-      
-      return Err('Не удалось отменить заказ: ${response.statusCode}');
+
+      return Err(_extractApiErrorMessage(response.data) ??
+          'Не удалось отменить заказ: ${response.statusCode}');
     } on DioException catch (e) {
       print('[DEBUG] OrderApi.cancelOrder: DioException: ${e.message}');
-      return Err('Ошибка отмены заказа: ${e.message}');
+      final serverMessage = _extractApiErrorMessage(e.response?.data);
+      return Err(serverMessage ?? 'Не удалось отменить заказ. Попробуйте позже.');
     } catch (e) {
       print('[DEBUG] OrderApi.cancelOrder: Общая ошибка: $e');
       return Err('Неожиданная ошибка: ${e.toString()}');
     }
+  }
+
+  /// Повторить отмененный заказ — добавить товары в корзину
+  Future<Result<int>> repeatOrder(Order order) async {
+    try {
+      if (!order.isCancelled) {
+        return const Err('Повторить можно только отмененный заказ');
+      }
+
+      if (!await OrderActionLimitService.canPerformAction(order.id)) {
+        return const Err(
+          'Лимит исчерпан: отменить или повторить этот заказ можно не более 3 раз',
+        );
+      }
+
+      if (order.items.isEmpty) {
+        return const Err('В заказе нет товаров для повторения');
+      }
+
+      final cartApi = CartApi();
+      var addedCount = 0;
+      String? lastError;
+
+      for (final item in order.items) {
+        if (item.productId <= 0 || item.quantity <= 0) {
+          continue;
+        }
+
+        final result = await cartApi.add(
+          item.productId,
+          item.quantity,
+          inventoryId: item.inventoryId,
+        );
+
+        result.when(
+          ok: (_) => addedCount++,
+          err: (error) => lastError = error,
+        );
+      }
+
+      if (addedCount == 0) {
+        return Err(lastError ?? 'Не удалось добавить товары в корзину');
+      }
+
+      await OrderActionLimitService.recordAction(order.id);
+      return Ok(addedCount);
+    } catch (e) {
+      return Err('Не удалось повторить заказ: $e');
+    }
+  }
+
+  String? _extractApiErrorMessage(dynamic data) {
+    if (data is! Map<String, dynamic>) return null;
+
+    final message = data['message'];
+    if (message is String && message.trim().isNotEmpty) {
+      return message.trim();
+    }
+
+    final error = data['error'];
+    if (error is String && error.trim().isNotEmpty) {
+      return error.trim();
+    }
+
+    final form = data['form'];
+    if (form is Map) {
+      for (final value in form.values) {
+        if (value is List && value.isNotEmpty) {
+          return value.first.toString();
+        }
+        if (value is String && value.isNotEmpty) {
+          return value;
+        }
+      }
+    }
+
+    return null;
   }
 
   /// Оценить товар в заказе
@@ -546,6 +574,23 @@ class OrderApi {
     } catch (e) {
       print('[DEBUG] OrderApi._getOrderFromLocalStorage: Ошибка загрузки заказа: $e');
       return null;
+    }
+  }
+
+  Future<void> _markOrderCancelledLocally(int orderId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final orderJson = prefs.getString('order_$orderId');
+      if (orderJson == null) return;
+
+      final orderData = jsonDecode(orderJson) as Map<String, dynamic>;
+      orderData['cancelled'] = 1;
+      orderData['status'] = 'cancelled';
+      orderData['delivery_status'] = 'cancelled';
+      await prefs.setString('order_$orderId', jsonEncode(orderData));
+      print('[DEBUG] OrderApi._markOrderCancelledLocally: Заказ $orderId помечен отмененным');
+    } catch (e) {
+      print('[DEBUG] OrderApi._markOrderCancelledLocally: Ошибка: $e');
     }
   }
 

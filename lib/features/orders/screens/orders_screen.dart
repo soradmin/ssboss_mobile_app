@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/date_formatter.dart';
 import '../../../theme.dart';
 import '../../../core/widgets/bottom_navigation_bar.dart';
 import '../models/order.dart';
@@ -853,12 +854,7 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
   }
 
   String _formatDate(String dateString) {
-    try {
-      final date = DateTime.parse(dateString);
-      return '${date.day}.${date.month}.${date.year} в ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
-    } catch (e) {
-      return dateString;
-    }
+    return AppDateFormatter.formatDateTimeString(dateString);
   }
 
   String _getShortOrderNumber(String orderNumber) {

@@ -162,8 +162,8 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: crossAxisCount,
             childAspectRatio: ProductGridCard.gridChildAspectRatio,
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
+            crossAxisSpacing: ProductGridCard.gridCrossAxisSpacing,
+            mainAxisSpacing: ProductGridCard.gridMainAxisSpacing,
           ),
           itemCount: crossAxisCount * 4,
           itemBuilder: (context, index) => const ProductGridCardSkeleton(),
@@ -236,8 +236,8 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
             sliver: SliverGrid.builder(
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 2,
-                mainAxisSpacing: 12,
-                crossAxisSpacing: 12,
+                mainAxisSpacing: ProductGridCard.gridMainAxisSpacing,
+                crossAxisSpacing: ProductGridCard.gridCrossAxisSpacing,
                 childAspectRatio: ProductGridCard.gridChildAspectRatio,
               ),
               itemCount: _products.length + (_loadingMore ? 2 : 0),
