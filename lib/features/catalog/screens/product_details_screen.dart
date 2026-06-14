@@ -11,6 +11,7 @@ import 'package:chewie/chewie.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:carousel_slider/carousel_controller.dart' as cs;
 import '../../../core/date_formatter.dart';
+import '../../cart/controllers/cart_controller.dart';
 import '../../cart/models/cart_item.dart';
 import '../models/product.dart';
 import '../models/review.dart';
