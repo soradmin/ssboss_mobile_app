@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SSBOSS — Developer Documentation</title>
+    <meta name="description" content="SSBOSS technical documentation for developers: API, architecture, Flutter client, Laravel backend, and local setup." />
+    <link rel="canonical" href="https://ssboss.shop/docs/en/" />
+    <link rel="alternate" hreflang="ru" href="https://ssboss.shop/docs/" />
+    <link rel="alternate" hreflang="en" href="https://ssboss.shop/docs/en/" />
+    <link rel="alternate" hreflang="tg" href="https://ssboss.shop/docs/tj/" />
+    <link rel="alternate" hreflang="x-default" href="https://ssboss.shop/docs/" />
+    <meta name="robots" content="index,follow" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = { theme: { extend: { colors: { brand: { 50:"#faf5ff",100:"#f3e8ff",200:"#e9d5ff",300:"#d8b4fe",400:"#c084fc",500:"#a855f7",600:"#9333ea",700:"#7c3aed",800:"#6b21a8",900:"#4c1d95" } }, boxShadow: { soft: "0 20px 50px rgba(76, 29, 149, 0.12)" } } } };
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;500;600;700;800&family=Rubik:wght@500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../styles.css" />
+  </head>
+  <body class="bg-gradient-to-b from-brand-50 via-white to-white text-slate-800">
+    <div class="min-h-screen">
+      <header class="sticky top-0 z-40 border-b border-brand-100/80 bg-white/85 backdrop-blur">
+        <div class="mx-auto flex max-w-7xl items-center gap-4 px-4 py-3 sm:px-6 lg:px-8">
+          <a href="#top" class="flex items-center gap-3">
+            <img src="https://ssboss.shop/uploads/header_logo-1756897524-4.png" alt="Logo" class="h-10 w-auto rounded-xl bg-white p-1 shadow-sm" />
+            <p class="font-heading text-lg font-bold text-brand-900">Developer Documentation</p>
+          </a>
+          <nav class="ml-auto hidden items-center gap-6 text-sm font-semibold text-slate-600 lg:flex">
+            <a class="nav-link" href="#api">API</a>
+            <a class="nav-link" href="#mobile-client">Flutter</a>
+            <a class="nav-link" href="#backend">Backend</a>
+            <a class="nav-link" href="#setup">Setup</a>
+          </nav>
+          <div class="docs-switcher ml-2 hidden shrink-0 lg:inline-flex">
+            <a href="./index.html" class="is-active">Dev</a>
+            <a href="../guide/en/index.html">User</a>
+          </div>
+          <div class="lang-switcher ml-2 shrink-0">
+            <a href="../index.html" class="lang-switcher-link" hreflang="ru">RU</a>
+            <a href="./index.html" class="lang-switcher-link is-active" hreflang="en">EN</a>
+            <a href="../tj/index.html" class="lang-switcher-link" hreflang="tg">TJ</a>
+          </div>
+          <button id="mobileMenuButton" class="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-brand-200 text-brand-700 lg:hidden" aria-label="Open menu">
+            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M4 12h16M4 17h16" stroke-linecap="round" /></svg>
+          </button>
+        </div>
+        <div id="mobileMenu" class="hidden border-t border-brand-100 bg-white lg:hidden">
+          <div class="mx-auto flex max-w-7xl flex-col gap-1 px-4 py-3">
+            <div class="docs-switcher mb-2 self-start"><a href="./index.html">Dev</a><a href="../guide/en/index.html">User</a></div>
+            <div class="lang-switcher mb-2 self-start">
+              <a href="../index.html" class="lang-switcher-link">RU</a>
+              <a href="./index.html" class="lang-switcher-link is-active">EN</a>
+              <a href="../tj/index.html" class="lang-switcher-link">TJ</a>
+            </div>
+            <a class="mobile-nav-link" href="#api">API</a>
+            <a class="mobile-nav-link" href="#setup">Setup</a>
+          </div>
+        </div>
+      </header>
+
+      <main id="top">
+        <section class="relative overflow-hidden">
+          <div class="mx-auto max-w-7xl px-4 pb-14 pt-10 sm:px-6 lg:px-8 lg:pt-16">
+            <span class="inline-flex rounded-full border border-brand-200 bg-white/90 px-4 py-1 text-xs font-bold uppercase tracking-[0.26em] text-brand-700">For Developers</span>
+            <h1 class="mt-5 font-heading text-4xl font-extrabold text-brand-900 sm:text-5xl">SSBOSS Technical Documentation</h1>
+            <p class="mt-5 max-w-3xl text-lg text-slate-600">REST API, architecture, repository layout, and Flutter ↔ Laravel integration. End-user guides for buyers and sellers are published separately.</p>
+            <p class="mt-4 font-mono text-sm font-bold text-brand-700">Base URL: https://ssboss.shop/api/v1</p>
+          </div>
+        </section>
+
+        <section id="overview" class="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+          <div class="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
+            <aside class="lg:sticky lg:top-28 lg:self-start">
+              <div class="rounded-3xl border border-brand-100 bg-white p-5 shadow-soft">
+                <input id="docSearch" type="search" placeholder="Search docs..." class="w-full rounded-2xl border border-brand-200 bg-brand-50/50 px-4 py-3 text-sm" />
+                <div class="mt-5 space-y-1 text-sm">
+                  <a class="toc-link" href="#architecture">Architecture</a>
+                  <a class="toc-link" href="#api">REST API</a>
+                  <a class="toc-link" href="#api-auth">Authentication</a>
+                  <a class="toc-link" href="#api-catalog">Catalog</a>
+                  <a class="toc-link" href="#api-cart">Cart</a>
+                  <a class="toc-link" href="#api-orders">Orders</a>
+                  <a class="toc-link" href="#api-user">Profile & lists</a>
+                  <a class="toc-link" href="#api-admin">Admin API</a>
+                  <a class="toc-link" href="#mobile-client">Flutter client</a>
+                  <a class="toc-link" href="#backend">Laravel</a>
+                  <a class="toc-link" href="#repo">Repository</a>
+                  <a class="toc-link" href="#setup">Local setup</a>
+                  <a class="toc-link" href="#stack">Tech stack</a>
+                </div>
+              </div>
+            </aside>
+
+            <div class="space-y-10">
+              <section id="architecture" data-searchable>
+                <p class="section-kicker">Architecture</p>
+                <h2 class="section-title">System overview</h2>
+                <p class="mt-4 text-slate-600">Monorepo: Flutter app (<code>lib/</code>) + Laravel 11 API and pre-built Nuxt SPAs (<code>server_code/</code>). All clients share one REST API.</p>
+                <div class="mt-6 grid gap-5 md:grid-cols-3">
+                  <article class="info-card"><h3>Flutter</h3><p>Dio client, Riverpod, GoRouter. Features in <code>lib/features/*</code>.</p></article>
+                  <article class="info-card"><h3>Laravel API</h3><p>Routes in <code>routes/api.php</code>. Passport OAuth2.</p></article>
+                  <article class="info-card"><h3>Nuxt SPA</h3><p>Storefront (<code>_nuxt/</code>) and admin (<code>admin/</code>).</p></article>
+                </div>
+              </section>
+
+              <section id="api" data-searchable>
+                <p class="section-kicker">REST API</p>
+                <h2 class="section-title">API overview</h2>
+                <div class="rounded-3xl border border-brand-100 bg-white p-6 shadow-soft text-sm text-slate-600 space-y-2">
+                  <p><strong>Base:</strong> <code>https://ssboss.shop/api/v1</code></p>
+                  <p><strong>Format:</strong> JSON, <code>Accept: application/json</code></p>
+                  <p><strong>Routes file:</strong> <code>server_code/routes/api.php</code></p>
+                  <p><strong>Groups:</strong> <code>/api/v1/*</code> (mobile/storefront), <code>/api/admin/*</code> (backoffice)</p>
+                </div>
+              </section>
+
+              <section id="api-auth" data-searchable>
+                <p class="section-kicker">Auth</p>
+                <h2 class="section-title">Authentication</h2>
+                <div class="overflow-x-auto rounded-3xl border border-brand-100 bg-white shadow-soft">
+                  <table class="endpoint-table">
+                    <thead><tr><th>Method</th><th>Endpoint</th><th>Auth</th><th>Description</th></tr></thead>
+                    <tbody>
+                      <tr><td class="method-post">POST</td><td><code>/user/signin</code></td><td>—</td><td>Login → Passport Bearer token</td></tr>
+                      <tr><td class="method-post">POST</td><td><code>/user/signup</code></td><td>—</td><td>Register + email verification</td></tr>
+                      <tr><td class="method-get">GET</td><td><code>/user/profile</code></td><td>optional</td><td>User profile</td></tr>
+                      <tr><td class="method-post">POST</td><td><code>/user/fcm-token</code></td><td>Bearer</td><td>FCM push registration</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+                <pre class="code-block"><code>Authorization: Bearer {token}
+GET /api/v1/cart/by-user?user_token=g_...</code></pre>
+              </section>
+
+              <section id="api-catalog" data-searchable>
+                <p class="section-kicker">Catalog</p>
+                <h2 class="section-title">Public catalog endpoints</h2>
+                <div class="overflow-x-auto rounded-3xl border border-brand-100 bg-white shadow-soft">
+                  <table class="endpoint-table">
+                    <thead><tr><th>Method</th><th>Endpoint</th><th>Description</th></tr></thead>
+                    <tbody>
+                      <tr><td class="method-get">GET</td><td><code>/home</code></td><td>Home feed</td></tr>
+                      <tr><td class="method-get">GET</td><td><code>/products</code></td><td>Product list</td></tr>
+                      <tr><td class="method-get">GET</td><td><code>/product/{id}</code></td><td>Product details</td></tr>
+                      <tr><td class="method-get">GET</td><td><code>/search?q=</code></td><td>Search</td></tr>
+                      <tr><td class="method-get">GET</td><td><code>/store?slug=</code></td><td>Store page</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+
+              <section id="api-cart" data-searchable>
+                <p class="section-kicker">Cart</p>
+                <h2 class="section-title">Cart</h2>
+                <div class="overflow-x-auto rounded-3xl border border-brand-100 bg-white shadow-soft">
+                  <table class="endpoint-table">
+                    <thead><tr><th>Method</th><th>Endpoint</th><th>Description</th></tr></thead>
+                    <tbody>
+                      <tr><td class="method-get">GET</td><td><code>/cart/by-user</code></td><td>Get cart (Bearer or user_token)</td></tr>
+                      <tr><td class="method-post">POST</td><td><code>/cart/action</code></td><td>Add/update item</td></tr>
+                      <tr><td class="method-delete">DELETE</td><td><code>/cart/delete/{id}</code></td><td>Remove item</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+
+              <section id="api-orders" data-searchable>
+                <p class="section-kicker">Orders</p>
+                <h2 class="section-title">Orders & checkout</h2>
+                <div class="overflow-x-auto rounded-3xl border border-brand-100 bg-white shadow-soft">
+                  <table class="endpoint-table">
+                    <thead><tr><th>Method</th><th>Endpoint</th><th>Description</th></tr></thead>
+                    <tbody>
+                      <tr><td class="method-post">POST</td><td><code>/order/by-user</code></td><td>List/detail orders</td></tr>
+                      <tr><td class="method-post">POST</td><td><code>/order/action</code></td><td>Place order (may use AES)</td></tr>
+                      <tr><td class="method-post">POST</td><td><code>/cancellation/cancel-order</code></td><td>Cancel order</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+
+              <section id="api-user" data-searchable>
+                <p class="section-kicker">User</p>
+                <h2 class="section-title">Profile, wishlist, compare, stores</h2>
+                <article class="feature-group">
+                  <h3>Bearer required</h3>
+                  <ul>
+                    <li><code>/user/wishlist/all</code>, <code>/user/wishlist/action</code></li>
+                    <li><code>/user/compare-list/all</code>, <code>/user/compare-list/action</code></li>
+                    <li><code>/user/store/follow</code>, <code>/user/store/following-list</code></li>
+                    <li><code>/user/address/all</code>, <code>/user/address/action</code></li>
+                  </ul>
+                </article>
+              </section>
+
+              <section id="api-admin" data-searchable>
+                <p class="section-kicker">Admin</p>
+                <h2 class="section-title">Admin API</h2>
+                <p class="text-sm text-slate-600">Prefix <code>/api/admin/</code>. Login: <code>POST /api/admin/login</code>. Full CRUD for catalog, orders, settings, sellers.</p>
+              </section>
+
+              <section id="mobile-client" data-searchable>
+                <p class="section-kicker">Flutter</p>
+                <h2 class="section-title">Mobile API client</h2>
+                <div class="grid gap-5 lg:grid-cols-2">
+                  <article class="feature-group">
+                    <h3>Core files</h3>
+                    <ul>
+                      <li><code>lib/core/api_client.dart</code> — Dio + Bearer interceptor</li>
+                      <li><code>lib/core/config.dart</code> — URLs, tokens</li>
+                      <li>Guest token: <code>g_{timestamp}_{random}</code></li>
+                    </ul>
+                  </article>
+                  <article class="feature-group">
+                    <h3>Config</h3>
+                    <ul>
+                      <li>Default API: <code>https://ssboss.shop/api/v1</code></li>
+                      <li>Override via <code>.env</code> → API_BASE_URL</li>
+                    </ul>
+                  </article>
+                </div>
+              </section>
+
+              <section id="backend" data-searchable>
+                <p class="section-kicker">Backend</p>
+                <h2 class="section-title">Laravel backend</h2>
+                <article class="feature-group">
+                  <ul>
+                    <li><code>server_code/routes/api.php</code></li>
+                    <li>Guards: <code>user</code>, <code>admin</code> (Passport)</li>
+                    <li>Rate limit: 60 req/min</li>
+                  </ul>
+                </article>
+              </section>
+
+              <section id="repo" data-searchable>
+                <p class="section-kicker">Repository</p>
+                <h2 class="section-title">Folder structure</h2>
+                <pre class="code-block"><code>lib/           → Flutter app
+server_code/   → Laravel + Nuxt builds
+  routes/api.php
+  public/docs/   → this documentation</code></pre>
+              </section>
+
+              <section id="setup" data-searchable>
+                <p class="section-kicker">Setup</p>
+                <h2 class="section-title">Local development</h2>
+                <div class="grid gap-5 lg:grid-cols-2">
+                  <article class="feature-group">
+                    <h3>Laravel</h3>
+                    <ul>
+                      <li><code>.env.example</code> → <code>.env</code>, configure DB</li>
+                      <li><code>php artisan migrate</code></li>
+                      <li><code>php artisan passport:install</code></li>
+                    </ul>
+                  </article>
+                  <article class="feature-group">
+                    <h3>Flutter</h3>
+                    <ul>
+                      <li><code>flutter pub get</code></li>
+                      <li><code>.env</code>: API_BASE_URL, AES_KEY, AES_IV</li>
+                    </ul>
+                  </article>
+                </div>
+              </section>
+
+              <section id="stack" data-searchable>
+                <p class="section-kicker">Stack</p>
+                <h2 class="section-title">Technologies</h2>
+                <div class="grid gap-5 lg:grid-cols-2">
+                  <article class="feature-group"><h3>Mobile</h3><ul><li>Flutter 3, Riverpod, GoRouter, Dio</li><li>Firebase Messaging</li></ul></article>
+                  <article class="feature-group"><h3>Backend</h3><ul><li>Laravel 11, PHP 8.2, Passport</li><li>MySQL, Nuxt SPA builds</li></ul></article>
+                </div>
+              </section>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+    <script src="../app.js"></script>
+  </body>
+</html>

@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../core/config.dart';
 import '../../../core/result.dart';
 import '../../../core/widgets/bottom_navigation_bar.dart';
@@ -497,6 +498,18 @@ class _UserProfileViewState extends ConsumerState<_UserProfileView>
           title: 'Сравнения',
           subtitle: 'Сравнить товары',
           onTap: () => context.push('/compare'),
+        ),
+        const SizedBox(height: 12),
+        _buildProfileCard(
+          icon: Icons.store_mall_directory_outlined,
+          title: 'Стать продавцом',
+          subtitle: 'Открыть магазин на SSBOSS',
+          onTap: () async {
+            final url = Uri.parse('https://ssboss.shop/seller/sign-up');
+            if (await canLaunchUrl(url)) {
+              await launchUrl(url, mode: LaunchMode.externalApplication);
+            }
+          },
         ),
       ],
     );

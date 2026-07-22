@@ -18,12 +18,18 @@ class Brand {
   });
 
   factory Brand.fromJson(Map<String, dynamic> json) {
+    final rawId = json['id'];
+    final id = rawId is int
+        ? rawId
+        : int.tryParse(rawId?.toString() ?? '') ?? 0;
     return Brand(
-      id: (json['id'] ?? 0) as int,
+      id: id,
       name: (json['name'] ?? json['title'] ?? '').toString(),
       logo: (json['logo'] ?? json['image'] ?? '').toString(),
       slug: json['slug']?.toString(),
-      status: (json['status'] ?? 1) as int,
+      status: (json['status'] is int)
+          ? json['status'] as int
+          : int.tryParse(json['status']?.toString() ?? '') ?? 1,
       createdAt: json['created_at']?.toString(),
       updatedAt: json['updated_at']?.toString(),
     );

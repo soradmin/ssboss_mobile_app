@@ -620,6 +620,25 @@ Route::group([
 
     Route::get('common', [FrontendController::class, 'common']);
     Route::get('home', [FrontendController::class, 'home']);
+    Route::get('app-version', function () {
+        $path = public_path('app-version.json');
+        if (!file_exists($path)) {
+            return response()->json([
+                'latest_version' => '1.0.5',
+                'latest_build' => 13,
+                'min_version' => '1.0.0',
+                'min_build' => 1,
+                'force_update' => false,
+                'android_store_url' => 'https://play.google.com/store/apps/details?id=com.ssboss.ssbossmp',
+                'ios_store_url' => 'https://apps.apple.com/search?term=SSBOSS',
+                'message' => 'Вышла новая версия приложения. Обновите его в магазине приложений.',
+            ]);
+        }
+        return response()->file($path, [
+            'Content-Type' => 'application/json',
+            'Cache-Control' => 'no-cache, must-revalidate',
+        ]);
+    });
     Route::get('products', [FrontendController::class, 'products']);
     Route::get('categories', [FrontendController::class, 'categories']);
     Route::get('all', [FrontendController::class, 'all']);

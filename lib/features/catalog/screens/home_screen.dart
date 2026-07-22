@@ -228,12 +228,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   }
 
   Future<void> _applyFirstNewProductsPage(List<Product> batch) async {
-    final profile = await UserPreferenceService.instance.loadProfile();
-    final personalized = UserPreferenceService.personalizeProducts(batch, profile);
+    // «Новинки» — порядок API без персонализации (она только во вкладке «Рекомендуемые»).
     if (!mounted) return;
     setState(() {
-      _newProducts = personalized;
-      _products = personalized;
+      _newProducts = batch;
+      _products = batch;
       _newProductsPage = 1;
       _newProductsHasMore = _hasMoreNewProductsBatch(batch);
       _newProductsLoadingMore = false;
@@ -321,18 +320,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
   Future<void> _applyHomeCache(HomeContentCache cache) async {
     final profile = await UserPreferenceService.instance.loadProfile();
-    final personalized = UserPreferenceService.personalizeProducts(
-      cache.newProducts,
+    final personalizedRecommended = UserPreferenceService.personalizeProducts(
+      cache.recommendedProducts,
       profile,
     );
     if (!mounted) return;
     setState(() {
-      _newProducts = personalized;
-      _products = personalized;
+      _newProducts = cache.newProducts;
+      _products = cache.newProducts;
       _newProductsPage = 1;
       _newProductsHasMore = _hasMoreNewProductsBatch(cache.newProducts);
       _newProductsLoadingMore = false;
-      _recommendedProducts = cache.recommendedProducts;
+      _recommendedProducts = personalizedRecommended;
       _trendingProducts = cache.trendingProducts;
       _discountedProducts = cache.discountedProducts;
       _sliders = cache.sliders;
@@ -503,7 +502,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     return allProducts;
   }
 
-  // Загрузка рекомендуемых товаров (коллекция id=1, как на вебе)
+  // Загрузка рекомендуемых товаров (коллекция id=1 + персонализация по предпочтениям)
   Future<void> _loadRecommendedProducts() async {
     print('[DEBUG] Загрузка рекомендуемых товаров (collection=1)...');
     try {
@@ -511,11 +510,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         '1',
         titleKeywords: const ['рекомен', 'featured', 'popular', 'популяр'],
       );
+      final profile = await UserPreferenceService.instance.loadProfile();
+      final personalized =
+          UserPreferenceService.personalizeProducts(allProducts, profile);
+      if (!mounted) return;
       setState(() {
-        _recommendedProducts = allProducts;
+        _recommendedProducts = personalized;
       });
       HomeContentCache.instance.saveTabProducts(recommended: allProducts);
-      print('[DEBUG] Загружено ${allProducts.length} рекомендуемых товаров');
+      print(
+        '[DEBUG] Загружено ${allProducts.length} рекомендуемых '
+        '(персонализировано: ${personalized.length})',
+      );
     } catch (e) {
       print('[ERROR] Ошибка загрузки рекомендуемых товаров: $e');
     }
@@ -1332,12 +1338,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               itemBuilder: (context, index, realIndex) {
                 final brand = brands[index];
                 return GestureDetector(
-                  onTap: () {
-                    if (brand.slug != null && brand.slug!.isNotEmpty) {
-                      print('[DEBUG] Переход к бренду: ${brand.slug}');
-                      // TODO: Реализовать переход к товарам бренда
-                    }
-                  },
+                  onTap: () => _openBrandProducts(brand),
                   child: Container(
                     margin: const EdgeInsets.symmetric(horizontal: 8),
                     child: Column(
@@ -1611,6 +1612,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   }
 
   // Категории
+  void _openBrandProducts(Brand brand) {
+    if (brand.id <= 0) {
+      print('[DEBUG] Brand tap ignored: invalid id for ${brand.name}');
+      return;
+    }
+    final title = Uri.encodeComponent(brand.name);
+    print('[DEBUG] Переход к бренду: id=${brand.id}, name=${brand.name}');
+    context.push('/catalog/products?brand=${brand.id}&brand_title=$title');
+  }
+
   Widget _buildCategoriesSection() {
     // Используем бренды вместо категорий
     final compact = _isCompactPhone(context);
@@ -1638,12 +1649,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         itemBuilder: (context, index) {
           final brand = _brands[index];
           return GestureDetector(
-            onTap: () {
-              if (brand.slug != null && brand.slug!.isNotEmpty) {
-                print('[DEBUG] Переход к бренду: ${brand.slug}');
-                // TODO: Реализовать переход к товарам бренда
-              }
-            },
+            onTap: () => _openBrandProducts(brand),
             child: Container(
               width: 70,
               margin: const EdgeInsets.only(right: 12),

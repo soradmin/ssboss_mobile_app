@@ -15,6 +15,8 @@ class ProductsScreen extends ConsumerStatefulWidget {
   final String? searchQuery;
   final String? categoryTitle;
   final int? categoryId;
+  final int? brandId;
+  final String? brandTitle;
 
   const ProductsScreen({
     super.key,
@@ -22,6 +24,8 @@ class ProductsScreen extends ConsumerStatefulWidget {
     this.searchQuery,
     this.categoryTitle,
     this.categoryId,
+    this.brandId,
+    this.brandTitle,
   });
 
   @override
@@ -58,7 +62,11 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
     }
 
     final api = CatalogApi();
-    print('[DEBUG] ProductsScreen._loadProducts: Загружаем товары для category="${widget.category}", categoryId="${widget.categoryId}", search="${widget.searchQuery}"');
+    print(
+      '[DEBUG] ProductsScreen._loadProducts: category="${widget.category}", '
+      'categoryId="${widget.categoryId}", brandId="${widget.brandId}", '
+      'search="${widget.searchQuery}"',
+    );
 
     final Result<List<Product>> result;
     final searchQuery = widget.searchQuery?.trim();
@@ -80,6 +88,7 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
         page: _currentPage,
         category: widget.category,
         categoryId: widget.categoryId,
+        brandId: widget.brandId,
       );
     }
     
@@ -126,7 +135,10 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
         title: Text(
           (widget.searchQuery != null && widget.searchQuery!.trim().isNotEmpty)
               ? 'Поиск'
-              : (widget.categoryTitle ?? widget.category ?? 'Товары'),
+              : (widget.brandTitle ??
+                  widget.categoryTitle ??
+                  widget.category ??
+                  'Товары'),
           style: const TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.bold,

@@ -24,7 +24,11 @@ import 'features/profile/screens/edit_profile_screen.dart';
 import 'features/notifications/screens/notification_details_screen.dart';
 import 'features/notifications/screens/notifications_list_screen.dart';
 
+/// Корневой Navigator — для диалогов поверх всего UI (обновление приложения и т.п.).
+final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
+
 final appRouter = GoRouter(
+  navigatorKey: rootNavigatorKey,
   initialLocation: '/',
   routes: [
     GoRoute(
@@ -43,11 +47,16 @@ final appRouter = GoRouter(
                 final categoryTitle = state.uri.queryParameters['title'];
                 final categoryIdStr = state.uri.queryParameters['category_id'];
                 final categoryId = categoryIdStr != null ? int.tryParse(categoryIdStr) : null;
+                final brandIdStr = state.uri.queryParameters['brand'];
+                final brandId = brandIdStr != null ? int.tryParse(brandIdStr) : null;
+                final brandTitle = state.uri.queryParameters['brand_title'];
                 return ProductsScreen(
                   category: category,
                   searchQuery: search,
                   categoryTitle: categoryTitle,
                   categoryId: categoryId,
+                  brandId: brandId,
+                  brandTitle: brandTitle,
                 );
               },
             ),

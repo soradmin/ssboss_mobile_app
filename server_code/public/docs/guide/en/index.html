@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SSBOSS — User Guide</title>
+    <meta name="description" content="SSBOSS user guide for buyers and sellers: mobile app, website, and admin panel instructions with screenshots." />
+    <link rel="canonical" href="https://ssboss.shop/docs/guide/en/" />
+    <link rel="alternate" hreflang="ru" href="https://ssboss.shop/docs/guide/" />
+    <link rel="alternate" hreflang="en" href="https://ssboss.shop/docs/guide/en/" />
+    <link rel="alternate" hreflang="tg" href="https://ssboss.shop/docs/guide/tj/" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>tailwind.config={theme:{extend:{colors:{brand:{50:"#faf5ff",100:"#f3e8ff",200:"#e9d5ff",300:"#d8b4fe",400:"#c084fc",500:"#a855f7",600:"#9333ea",700:"#7c3aed",800:"#6b21a8",900:"#4c1d95"}},boxShadow:{soft:"0 20px 50px rgba(76, 29, 149, 0.12)"}}}};</script>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;500;600;700;800&family=Rubik:wght@500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../styles.css" />
+  </head>
+  <body class="bg-gradient-to-b from-brand-50 via-white to-white text-slate-800">
+    <div class="min-h-screen">
+      <header class="sticky top-0 z-40 border-b border-brand-100/80 bg-white/85 backdrop-blur">
+        <div class="mx-auto flex max-w-7xl items-center gap-4 px-4 py-3 sm:px-6 lg:px-8">
+          <a href="#top" class="flex items-center gap-3"><img src="https://ssboss.shop/uploads/header_logo-1756897524-4.png" alt="Logo" class="h-10 w-auto rounded-xl bg-white p-1 shadow-sm" /><p class="font-heading text-lg font-bold text-brand-900">User Guide</p></a>
+          <nav class="ml-auto hidden gap-6 text-sm font-semibold text-slate-600 lg:flex"><a class="nav-link" href="#buyers">Buyers</a><a class="nav-link" href="#sellers">Sellers</a></nav>
+          <div class="docs-switcher ml-2 hidden shrink-0 lg:inline-flex"><a href="../../en/index.html">Dev</a><a href="./index.html" class="is-active">User</a></div>
+          <div class="lang-switcher ml-2 shrink-0"><a href="../index.html" class="lang-switcher-link">RU</a><a href="./index.html" class="lang-switcher-link is-active">EN</a><a href="../tj/index.html" class="lang-switcher-link">TJ</a></div>
+          <button id="mobileMenuButton" class="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-brand-200 text-brand-700 lg:hidden" aria-label="Menu"><svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M4 12h16M4 17h16" stroke-linecap="round" /></svg></button>
+        </div>
+        <div id="mobileMenu" class="hidden border-t border-brand-100 bg-white lg:hidden"><div class="mx-auto flex max-w-7xl flex-col gap-1 px-4 py-3"><div class="docs-switcher mb-2 self-start"><a href="../../en/index.html">Dev</a><a href="./index.html" class="is-active">User</a></div><div class="lang-switcher mb-2 self-start"><a href="../index.html" class="lang-switcher-link">RU</a><a href="./index.html" class="lang-switcher-link is-active">EN</a><a href="../tj/index.html" class="lang-switcher-link">TJ</a></div><a class="mobile-nav-link" href="#buyers">Buyers</a><a class="mobile-nav-link" href="#sellers">Sellers</a></div></div>
+      </header>
+      <main id="top">
+        <section class="mx-auto max-w-7xl px-4 pb-12 pt-10 sm:px-6 lg:px-8">
+          <h1 class="font-heading text-4xl font-extrabold text-brand-900 sm:text-5xl">User guide for buyers and sellers</h1>
+          <p class="mt-5 max-w-3xl text-lg text-slate-600">Step-by-step instructions for the SSBOSS mobile app and ssboss.shop website, with real screenshots.</p>
+        </section>
+        <section class="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+          <div class="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
+            <aside class="lg:sticky lg:top-28 lg:self-start"><div class="rounded-3xl border border-brand-100 bg-white p-5 shadow-soft"><input id="docSearch" type="search" placeholder="Search..." class="w-full rounded-2xl border border-brand-200 bg-brand-50/50 px-4 py-3 text-sm" /><div class="mt-5 space-y-1 text-sm"><a class="toc-link" href="#buyers">Buyers</a><a class="toc-link" href="#buyer-start">Getting started</a><a class="toc-link" href="#buyer-catalog">Catalog</a><a class="toc-link" href="#buyer-cart">Cart & orders</a><a class="toc-link" href="#sellers">Sellers</a><a class="toc-link" href="#seller-orders">Order processing</a></div></div></aside>
+            <div class="space-y-12">
+              <section id="buyers" data-searchable><p class="section-kicker">Buyers</p><h2 class="section-title">Instructions for buyers</h2><p class="mt-4 text-slate-600">Use SSBOSS via the mobile app (iOS/Android) or ssboss.shop. One account works on both.</p></section>
+              <section id="buyer-start" data-searchable>
+                <h3 class="font-heading text-2xl font-bold text-brand-900">Getting started</h3>
+                <article class="guide-step mt-5"><div><span class="guide-badge guide-badge-buyer">Buyer</span><p class="mt-3 text-sm text-slate-600">Download SSBOSS from the App Store or Google Play. Browse products on the home feed.</p></div><figure class="guide-screenshot"><img src="/uploads/docs/guide/home.png" alt="Home screen" loading="lazy" /><figcaption>Home</figcaption></figure></article>
+                <article class="guide-step mt-4"><div><p class="mt-2 text-sm text-slate-600">Create an account in Profile → Sign up. Confirm your email. Use the bottom nav: Home, Catalog, Cart, Favorites, Profile.</p></div><figure class="guide-screenshot"><img src="/uploads/docs/guide/home-feed.png" alt="Product feed" loading="lazy" /><figcaption>Product feed</figcaption></figure></article>
+              </section>
+              <section id="buyer-catalog" data-searchable>
+                <h3 class="font-heading text-2xl font-bold text-brand-900">Catalog & search</h3>
+                <article class="guide-step mt-5"><div><p class="text-sm text-slate-600">Open Catalog, pick a category. Tap the heart to save, cart icon to add, or the card to view details.</p></div><figure class="guide-screenshot"><img src="/uploads/docs/guide/catalog.png" alt="Catalog" loading="lazy" /><figcaption>Category</figcaption></figure></article>
+              </section>
+              <section id="buyer-cart" data-searchable>
+                <h3 class="font-heading text-2xl font-bold text-brand-900">Cart & orders</h3>
+                <p class="mt-4 text-sm text-slate-600">Add items to cart, checkout with delivery/pickup and payment method. Track orders in Profile → My orders.</p>
+                <figure class="guide-screenshot mt-5 max-w-sm"><img src="/uploads/docs/guide/compare.png" alt="Compare" loading="lazy" /><figcaption>Compare products</figcaption></figure>
+                <figure class="guide-screenshot mt-5 max-w-sm"><img src="/uploads/docs/guide/favorite-stores.png" alt="Favorite stores" loading="lazy" /><figcaption>Favorite stores</figcaption></figure>
+              </section>
+              <section id="buyer-web" data-searchable>
+                <h3 class="font-heading text-2xl font-bold text-brand-900">Shopping on the website</h3>
+                <article class="guide-step mt-5"><div><p class="text-sm text-slate-600">Browse ssboss.shop, open a product page, add to cart or buy now. Same account as the app.</p></div><figure class="guide-screenshot lg:max-w-md"><img src="/uploads/docs/guide/web-product.png" alt="Web product page" loading="lazy" /><figcaption>Website product page</figcaption></figure></article>
+              </section>
+              <section id="sellers" data-searchable><p class="section-kicker">Sellers</p><h2 class="section-title">Instructions for sellers</h2><p class="mt-4 text-slate-600">Manage your store via the SSBOSS admin panel: products, orders, and settings.</p></section>
+              <section id="seller-orders" data-searchable>
+                <h3 class="font-heading text-2xl font-bold text-brand-900">Order processing</h3>
+                <article class="guide-step mt-5"><div><span class="guide-badge guide-badge-seller">Seller</span><p class="mt-3 text-sm text-slate-600">Go to Orders in the admin panel. View customer details, items, payment and delivery status. Update status and print invoice when ready.</p></div><figure class="guide-screenshot lg:max-w-lg"><img src="/uploads/docs/guide/seller-order.png" alt="Admin order view" loading="lazy" /><figcaption>Admin — order details</figcaption></figure></article>
+                <article class="feature-group mt-5"><h3>Become a seller</h3><ul><li>Click "Become a seller" on the website or contact SSBOSS support</li><li>After approval, access the admin panel</li><li>Add products under Products, use bulk upload for large catalogs</li></ul></article>
+              </section>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+    <script src="../../app.js"></script>
+  </body>
+</html>

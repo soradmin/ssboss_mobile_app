@@ -127,7 +127,7 @@ class PaymentApi {
           city: 'Душанбе',
           region: 'РРП',
           postalCode: '734000',
-          phone: '930900412',
+          phone: '99 099 0955',
           country: 'TJ',
           type: 'pickup',
           isDefault: true,

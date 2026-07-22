@@ -19,6 +19,11 @@ IPA_PATH="$(ls -1 build/ios/ipa/*.ipa | head -n 1)"
 echo ""
 echo "IPA ready: $IPA_PATH"
 echo ""
+
+echo "==> Update server app-version.json (for in-app update dialog)"
+python3 "$ROOT_DIR/scripts/update_app_version_json.py" || python "$ROOT_DIR/scripts/update_app_version_json.py"
+echo ""
+
 echo "Upload options:"
 echo "  1) Transporter app (drag & drop the IPA)"
 echo "  2) Xcode -> Window -> Organizer -> Distribute App"

@@ -1,6 +1,14 @@
 // lib/core/api_client.dart
 import 'package:dio/dio.dart';
 import 'config.dart'; // Импортируем AppConfig
+import 'network/network_status.dart';
+
+bool _isNetworkFailure(DioException e) {
+  return e.type == DioExceptionType.connectionTimeout ||
+      e.type == DioExceptionType.sendTimeout ||
+      e.type == DioExceptionType.receiveTimeout ||
+      e.type == DioExceptionType.connectionError;
+}
 
 /// Единый, предварительно настроенный экземпляр Dio для всего приложения.
 final Dio dio = Dio(
@@ -29,6 +37,16 @@ final Dio dio = Dio(
         }
         // print('[DIO] Отправка запроса: ${options.method} ${options.uri}');
         return handler.next(options); // Продолжаем выполнение запроса
+      },
+      onResponse: (response, handler) {
+        networkNotifierRef?.reportSuccess();
+        return handler.next(response);
+      },
+      onError: (error, handler) {
+        if (_isNetworkFailure(error)) {
+          networkNotifierRef?.reportPoorConnection();
+        }
+        return handler.next(error);
       },
     ),
   )

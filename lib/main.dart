@@ -6,6 +6,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/config.dart';
+import 'core/network/network_banner.dart';
+import 'core/network/network_status.dart';
 import 'app_router.dart';
 import 'theme.dart';
 import 'features/cart/providers/cart_sync_provider.dart';
@@ -15,6 +17,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'firebase_options.dart';
 import 'features/notifications/services/notification_service.dart';
 import 'features/notifications/providers/notification_provider.dart';
+import 'features/app_update/app_update_checker.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -42,11 +45,25 @@ Future<void> main() async {
   runApp(const ProviderScope(child: IShopApp()));
 }
 
-class IShopApp extends ConsumerWidget {
+class IShopApp extends ConsumerStatefulWidget {
   const IShopApp({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<IShopApp> createState() => _IShopAppState();
+}
+
+class _IShopAppState extends ConsumerState<IShopApp> {
+  @override
+  void initState() {
+    super.initState();
+    // Даём Dio interceptor доступ к сетевому состоянию
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      networkNotifierRef = ref.read(networkProvider.notifier);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     // Инициализируем синхронизацию корзины при запуске приложения
     ref.watch(cartSyncProvider);
     
@@ -55,12 +72,23 @@ class IShopApp extends ConsumerWidget {
     
     // Инициализируем сервис уведомлений
     ref.watch(notificationInitializedProvider);
+
+    // Держим монитор сети активным
+    ref.watch(networkProvider);
     
     return MaterialApp.router(
       title: 'SSBOSS',
       theme: buildTheme(),
       routerConfig: appRouter,
       debugShowCheckedModeBanner: false,
+      scaffoldMessengerKey: rootScaffoldMessengerKey,
+      builder: (context, child) {
+        return NetworkStatusBanner(
+          child: AppUpdateChecker(
+            child: child ?? const SizedBox.shrink(),
+          ),
+        );
+      },
     );
   }
 }

@@ -1,0 +1,525 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SSBOSS — Developer Documentation</title>
+    <meta
+      name="description"
+      content="Техническая документация SSBOSS для разработчиков: API, архитектура, Flutter-клиент, Laravel backend и настройка окружения."
+    />
+    <link rel="canonical" href="https://ssboss.shop/docs/" />
+    <link rel="alternate" hreflang="ru" href="https://ssboss.shop/docs/" />
+    <link rel="alternate" hreflang="en" href="https://ssboss.shop/docs/en/" />
+    <link rel="alternate" hreflang="tg" href="https://ssboss.shop/docs/tj/" />
+    <link rel="alternate" hreflang="x-default" href="https://ssboss.shop/docs/" />
+    <meta name="robots" content="index,follow" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="SSBOSS — Developer Documentation" />
+    <meta property="og:description" content="API, архитектура и руководство для разработчиков SSBOSS." />
+    <meta property="og:image" content="https://ssboss.shop/uploads/header_logo-1756897524-4.png" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              brand: {
+                50: "#faf5ff",
+                100: "#f3e8ff",
+                200: "#e9d5ff",
+                300: "#d8b4fe",
+                400: "#c084fc",
+                500: "#a855f7",
+                600: "#9333ea",
+                700: "#7c3aed",
+                800: "#6b21a8",
+                900: "#4c1d95"
+              }
+            },
+            boxShadow: {
+              soft: "0 20px 50px rgba(76, 29, 149, 0.12)"
+            }
+          }
+        }
+      };
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;500;600;700;800&family=Rubik:wght@500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body class="bg-gradient-to-b from-brand-50 via-white to-white text-slate-800">
+    <div class="min-h-screen">
+      <header class="sticky top-0 z-40 border-b border-brand-100/80 bg-white/85 backdrop-blur">
+        <div class="mx-auto flex max-w-7xl items-center gap-4 px-4 py-3 sm:px-6 lg:px-8">
+          <a href="#top" class="flex items-center gap-3">
+            <img
+              src="https://ssboss.shop/uploads/header_logo-1756897524-4.png"
+              alt="Logo"
+              class="h-10 w-auto rounded-xl bg-white p-1 shadow-sm"
+            />
+            <div>
+              <p class="font-heading text-lg font-bold text-brand-900">Developer Documentation</p>
+            </div>
+          </a>
+          <nav class="ml-auto hidden items-center gap-6 text-sm font-semibold text-slate-600 lg:flex">
+            <a class="nav-link" href="#api">API</a>
+            <a class="nav-link" href="#mobile-client">Flutter</a>
+            <a class="nav-link" href="#backend">Backend</a>
+            <a class="nav-link" href="#setup">Setup</a>
+            <a class="nav-link" href="#stack">Стек</a>
+          </nav>
+          <div class="docs-switcher ml-2 hidden shrink-0 lg:inline-flex" aria-label="Тип документации">
+            <a href="./index.html" class="is-active">Dev</a>
+            <a href="./guide/index.html">User</a>
+          </div>
+          <div class="lang-switcher ml-2 shrink-0" aria-label="Выбор языка">
+            <a href="./index.html" class="lang-switcher-link is-active" hreflang="ru" lang="ru">RU</a>
+            <a href="./en/index.html" class="lang-switcher-link" hreflang="en" lang="en">EN</a>
+            <a href="./tj/index.html" class="lang-switcher-link" hreflang="tg" lang="tg">TJ</a>
+          </div>
+          <button
+            id="mobileMenuButton"
+            class="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-brand-200 text-brand-700 lg:hidden"
+            aria-label="Открыть меню"
+          >
+            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M4 7h16M4 12h16M4 17h16" stroke-linecap="round" />
+            </svg>
+          </button>
+        </div>
+        <div id="mobileMenu" class="hidden border-t border-brand-100 bg-white lg:hidden">
+          <div class="mx-auto flex max-w-7xl flex-col gap-1 px-4 py-3 sm:px-6">
+            <div class="docs-switcher mb-2 self-start"><a href="./index.html" class="is-active">Dev</a><a href="./guide/index.html">User</a></div>
+            <div class="lang-switcher mb-2 self-start" aria-label="Выбор языка">
+              <a href="./index.html" class="lang-switcher-link is-active" hreflang="ru" lang="ru">RU</a>
+              <a href="./en/index.html" class="lang-switcher-link" hreflang="en" lang="en">EN</a>
+              <a href="./tj/index.html" class="lang-switcher-link" hreflang="tg" lang="tg">TJ</a>
+            </div>
+            <a class="mobile-nav-link" href="#api">API</a>
+            <a class="mobile-nav-link" href="#mobile-client">Flutter</a>
+            <a class="mobile-nav-link" href="#backend">Backend</a>
+            <a class="mobile-nav-link" href="#setup">Setup</a>
+            <a class="mobile-nav-link" href="#stack">Стек</a>
+          </div>
+        </div>
+      </header>
+
+      <main id="top">
+        <section class="relative overflow-hidden">
+          <div class="absolute inset-x-0 top-0 -z-10 h-[28rem] bg-[radial-gradient(circle_at_top_right,_rgba(168,85,247,0.18),_transparent_36%),radial-gradient(circle_at_top_left,_rgba(124,58,237,0.18),_transparent_34%)]"></div>
+          <div class="mx-auto max-w-7xl px-4 pb-14 pt-10 sm:px-6 lg:px-8 lg:pb-20 lg:pt-16">
+            <div class="grid gap-10 lg:grid-cols-[1.2fr_0.8fr] lg:items-center">
+              <div>
+                <span class="inline-flex rounded-full border border-brand-200 bg-white/90 px-4 py-1 text-xs font-bold uppercase tracking-[0.26em] text-brand-700 shadow-sm">
+                  For Developers
+                </span>
+                <h1 class="mt-5 max-w-4xl font-heading text-4xl font-extrabold leading-tight text-brand-900 sm:text-5xl">
+                  Техническая документация SSBOSS
+                </h1>
+                <p class="mt-5 max-w-3xl text-lg leading-8 text-slate-600">
+                  API, архитектура, структура репозитория и интеграция мобильного приложения с Laravel backend.
+                  Пользовательские инструкции для покупателей и продавцов публикуются отдельно.
+                </p>
+                <div class="mt-8 flex flex-col gap-3 sm:flex-row">
+                  <a href="#api" class="inline-flex items-center justify-center rounded-2xl bg-brand-700 px-6 py-3 text-sm font-bold text-white shadow-soft transition hover:bg-brand-800">
+                    REST API
+                  </a>
+                  <a href="#setup" class="inline-flex items-center justify-center rounded-2xl border border-brand-200 bg-white px-6 py-3 text-sm font-bold text-brand-800 transition hover:border-brand-300 hover:bg-brand-50">
+                    Локальная настройка
+                  </a>
+                </div>
+              </div>
+              <div class="rounded-3xl border border-brand-100 bg-white/90 p-5 shadow-soft">
+                <div class="rounded-2xl bg-gradient-to-br from-brand-900 via-brand-700 to-fuchsia-500 p-6 text-white">
+                  <p class="text-sm font-semibold uppercase tracking-[0.22em] text-white/80">Base URL</p>
+                  <p class="mt-2 font-mono text-lg font-bold">https://ssboss.shop/api/v1</p>
+                  <div class="mt-5 grid gap-3 sm:grid-cols-2">
+                    <div class="rounded-2xl bg-white/10 p-4 backdrop-blur">
+                      <p class="text-xs uppercase tracking-[0.2em] text-white/70">Mobile API</p>
+                      <p class="mt-2 text-sm font-bold">/api/v1/*</p>
+                    </div>
+                    <div class="rounded-2xl bg-white/10 p-4 backdrop-blur">
+                      <p class="text-xs uppercase tracking-[0.2em] text-white/70">Admin API</p>
+                      <p class="mt-2 text-sm font-bold">/api/admin/*</p>
+                    </div>
+                  </div>
+                </div>
+                <div id="quick-start" class="mt-5 grid gap-3 sm:grid-cols-2">
+                  <article class="rounded-2xl border border-slate-200 p-4">
+                    <p class="text-xs font-bold uppercase tracking-[0.22em] text-brand-700">Auth</p>
+                    <p class="mt-2 text-sm leading-7 text-slate-600">Laravel Passport — Bearer token для <code>auth:user</code></p>
+                  </article>
+                  <article class="rounded-2xl border border-slate-200 p-4">
+                    <p class="text-xs font-bold uppercase tracking-[0.22em] text-brand-700">Guest</p>
+                    <p class="mt-2 text-sm leading-7 text-slate-600">Корзина без авторизации через query <code>user_token</code></p>
+                  </article>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="overview" class="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+          <div class="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
+            <aside class="lg:sticky lg:top-28 lg:self-start">
+              <div class="rounded-3xl border border-brand-100 bg-white p-5 shadow-soft">
+                <h2 class="font-heading text-lg font-bold text-brand-900">Навигация</h2>
+                <div class="mt-4">
+                  <label for="docSearch" class="sr-only">Поиск</label>
+                  <input id="docSearch" type="search" placeholder="Поиск по документации..." class="w-full rounded-2xl border border-brand-200 bg-brand-50/50 px-4 py-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-brand-400 focus:bg-white" />
+                </div>
+                <div class="mt-5 space-y-1 text-sm">
+                  <a class="toc-link" href="#architecture">Архитектура</a>
+                  <a class="toc-link" href="#api">REST API</a>
+                  <a class="toc-link" href="#api-auth">Аутентификация</a>
+                  <a class="toc-link" href="#api-catalog">Каталог</a>
+                  <a class="toc-link" href="#api-cart">Корзина</a>
+                  <a class="toc-link" href="#api-orders">Заказы</a>
+                  <a class="toc-link" href="#api-user">Профиль и списки</a>
+                  <a class="toc-link" href="#api-admin">Admin API</a>
+                  <a class="toc-link" href="#mobile-client">Flutter-клиент</a>
+                  <a class="toc-link" href="#backend">Laravel Backend</a>
+                  <a class="toc-link" href="#repo">Структура репозитория</a>
+                  <a class="toc-link" href="#setup">Локальная настройка</a>
+                  <a class="toc-link" href="#stack">Технологический стек</a>
+                  <a class="toc-link" href="#integrations">Интеграции</a>
+                </div>
+              </div>
+            </aside>
+
+            <div class="space-y-10">
+              <section id="architecture" data-searchable>
+                <p class="section-kicker">Architecture</p>
+                <h2 class="section-title">Архитектура системы</h2>
+                <p class="mt-4 max-w-3xl text-base leading-8 text-slate-600">
+                  SSBOSS — монорепозиторий: Flutter mobile app (<code>lib/</code>) + Laravel 11 API и собранные Nuxt SPA
+                  (<code>server_code/</code>). Все клиенты обращаются к единому REST API.
+                </p>
+                <div class="mt-6 grid gap-5 md:grid-cols-3">
+                  <article class="info-card">
+                    <h3>Flutter App</h3>
+                    <p>Dio-клиент, Riverpod, GoRouter. Feature-модули в <code>lib/features/*</code> с repo-слоем API.</p>
+                  </article>
+                  <article class="info-card">
+                    <h3>Laravel API</h3>
+                    <p>Маршруты в <code>server_code/routes/api.php</code>. Passport OAuth2 для user и admin guards.</p>
+                  </article>
+                  <article class="info-card">
+                    <h3>Nuxt SPA</h3>
+                    <p>Собранная витрина (<code>_nuxt/</code>) и админка (<code>admin/</code>) — используют тот же API.</p>
+                  </article>
+                </div>
+              </section>
+
+              <section id="api" data-searchable>
+                <p class="section-kicker">REST API</p>
+                <h2 class="section-title">Обзор API</h2>
+                <div class="rounded-3xl border border-brand-100 bg-white p-6 shadow-soft">
+                  <ul class="space-y-3 text-sm leading-7 text-slate-600">
+                    <li><strong>Базовый URL:</strong> <code>https://ssboss.shop/api/v1</code></li>
+                    <li><strong>Формат:</strong> JSON, заголовок <code>Accept: application/json</code></li>
+                    <li><strong>Rate limit:</strong> 60 запросов/мин на IP или пользователя</li>
+                    <li><strong>Файл маршрутов:</strong> <code>server_code/routes/api.php</code></li>
+                    <li><strong>Группы:</strong> <code>/api/v1/*</code> (storefront/mobile), <code>/api/admin/*</code> (backoffice)</li>
+                  </ul>
+                  <pre class="code-block"><code>GET  /api/v1/home
+GET  /api/v1/products?page=1
+GET  /api/v1/product/{id}
+POST /api/v1/user/signin
+POST /api/v1/cart/action?user_token=g_...</code></pre>
+                </div>
+              </section>
+
+              <section id="api-auth" data-searchable>
+                <p class="section-kicker">Auth</p>
+                <h2 class="section-title">Аутентификация</h2>
+                <div class="overflow-x-auto rounded-3xl border border-brand-100 bg-white shadow-soft">
+                  <table class="endpoint-table">
+                    <thead>
+                      <tr><th>Метод</th><th>Эндпоинт</th><th>Auth</th><th>Описание</th></tr>
+                    </thead>
+                    <tbody>
+                      <tr><td class="method-post">POST</td><td><code>/user/signin</code></td><td>—</td><td>Вход, возвращает Passport Bearer token</td></tr>
+                      <tr><td class="method-post">POST</td><td><code>/user/signup</code></td><td>—</td><td>Регистрация + email-верификация</td></tr>
+                      <tr><td class="method-post">POST</td><td><code>/user/verify</code></td><td>—</td><td>Подтверждение email-кода</td></tr>
+                      <tr><td class="method-post">POST</td><td><code>/user/forgot-password</code></td><td>—</td><td>Сброс пароля (throttle 5/min)</td></tr>
+                      <tr><td class="method-get">GET</td><td><code>/user/profile</code></td><td>опционально</td><td>Профиль (работает с Bearer и без)</td></tr>
+                      <tr><td class="method-get">GET</td><td><code>/user/logout</code></td><td>Bearer</td><td>Выход, инвалидация токена</td></tr>
+                      <tr><td class="method-post">POST</td><td><code>/user/fcm-token</code></td><td>Bearer</td><td>Регистрация FCM-токена для push</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+                <pre class="code-block"><code>Authorization: Bearer {passport_access_token}
+
+// Guest cart (без Bearer):
+GET /api/v1/cart/by-user?user_token=g_1739123456_abc123</code></pre>
+                <p class="mt-4 text-sm text-slate-600">Защищённые маршруты: middleware <code>auth:user</code> + <code>scope:user</code>. Admin: <code>auth:admin</code> + <code>scope:admin</code>.</p>
+              </section>
+
+              <section id="api-catalog" data-searchable>
+                <p class="section-kicker">Catalog</p>
+                <h2 class="section-title">Каталог и контент (публичные)</h2>
+                <div class="overflow-x-auto rounded-3xl border border-brand-100 bg-white shadow-soft">
+                  <table class="endpoint-table">
+                    <thead><tr><th>Метод</th><th>Эндпоинт</th><th>Описание</th></tr></thead>
+                    <tbody>
+                      <tr><td class="method-get">GET</td><td><code>/home</code></td><td>Главная: баннеры, подборки, новинки</td></tr>
+                      <tr><td class="method-get">GET</td><td><code>/products</code></td><td>Список товаров (?page, ?q)</td></tr>
+                      <tr><td class="method-get">GET</td><td><code>/all?category={slug}</code></td><td>Товары по категории</td></tr>
+                      <tr><td class="method-get">GET</td><td><code>/product/{id}</code></td><td>Карточка товара</td></tr>
+                      <tr><td class="method-get">GET</td><td><code>/search?q=</code></td><td>Поиск</td></tr>
+                      <tr><td class="method-get">GET</td><td><code>/categories</code></td><td>Дерево категорий</td></tr>
+                      <tr><td class="method-get">GET</td><td><code>/brands</code></td><td>Бренды</td></tr>
+                      <tr><td class="method-get">GET</td><td><code>/store?slug=</code></td><td>Страница магазина</td></tr>
+                      <tr><td class="method-get">GET</td><td><code>/flash-sale</code></td><td>Flash sale блок</td></tr>
+                      <tr><td class="method-get">GET</td><td><code>/reviews/{productId}</code></td><td>Отзывы товара</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+
+              <section id="api-cart" data-searchable>
+                <p class="section-kicker">Cart</p>
+                <h2 class="section-title">Корзина</h2>
+                <div class="overflow-x-auto rounded-3xl border border-brand-100 bg-white shadow-soft">
+                  <table class="endpoint-table">
+                    <thead><tr><th>Метод</th><th>Эндпоинт</th><th>Описание</th></tr></thead>
+                    <tbody>
+                      <tr><td class="method-get">GET</td><td><code>/cart/by-user</code></td><td>Получить корзину (Bearer или user_token)</td></tr>
+                      <tr><td class="method-post">POST</td><td><code>/cart/action</code></td><td>Добавить/изменить позицию</td></tr>
+                      <tr><td class="method-post">POST</td><td><code>/cart/change</code></td><td>Изменить количество</td></tr>
+                      <tr><td class="method-delete">DELETE</td><td><code>/cart/delete/{id}</code></td><td>Удалить позицию</td></tr>
+                      <tr><td class="method-post">POST</td><td><code>/cart/update-shipping</code></td><td>Обновить доставку</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+                <pre class="code-block"><code>POST /api/v1/cart/action
+Body: { "product_id": 123, "inventory_id": 456, "quantity": 1 }</code></pre>
+              </section>
+
+              <section id="api-orders" data-searchable>
+                <p class="section-kicker">Orders</p>
+                <h2 class="section-title">Заказы и checkout</h2>
+                <div class="overflow-x-auto rounded-3xl border border-brand-100 bg-white shadow-soft">
+                  <table class="endpoint-table">
+                    <thead><tr><th>Метод</th><th>Эндпоинт</th><th>Auth</th><th>Описание</th></tr></thead>
+                    <tbody>
+                      <tr><td class="method-post">POST</td><td><code>/order/by-user</code></td><td>Bearer</td><td>Список / детали заказов</td></tr>
+                      <tr><td class="method-post">POST</td><td><code>/order/action</code></td><td>Bearer</td><td>Создание заказа (может быть AES-шифрование)</td></tr>
+                      <tr><td class="method-post">POST</td><td><code>/order/payment-done</code></td><td>Bearer</td><td>Подтверждение оплаты</td></tr>
+                      <tr><td class="method-post">POST</td><td><code>/cancellation/cancel-order</code></td><td>Bearer</td><td>Отмена заказа</td></tr>
+                      <tr><td class="method-get">GET</td><td><code>/payment-gateway</code></td><td>—</td><td>Доступные способы оплаты</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+                <p class="mt-4 text-sm text-slate-600">Checkout на вебе может использовать AES-шифрование тела запроса (<code>lib/crypto/</code>, ключи в <code>.env</code>: AES_KEY, AES_IV).</p>
+              </section>
+
+              <section id="api-user" data-searchable>
+                <p class="section-kicker">User</p>
+                <h2 class="section-title">Профиль, избранное, сравнение, магазины</h2>
+                <div class="grid gap-5 lg:grid-cols-2">
+                  <article class="feature-group">
+                    <h3>Требуют Bearer token</h3>
+                    <ul>
+                      <li><code>GET /user/wishlist/all</code> — избранное</li>
+                      <li><code>POST /user/wishlist/action</code> — add/remove/toggle</li>
+                      <li><code>GET /user/compare-list/all</code> — сравнение</li>
+                      <li><code>POST /user/compare-list/action</code></li>
+                      <li><code>POST /user/store/follow</code> — подписка на магазин</li>
+                      <li><code>GET /user/store/following-list</code></li>
+                      <li><code>GET /user/address/all</code> — адреса</li>
+                      <li><code>POST /user/address/action</code></li>
+                    </ul>
+                  </article>
+                  <article class="feature-group">
+                    <h3>Flutter repo-файлы</h3>
+                    <ul>
+                      <li><code>lib/features/favorites/repo/favorites_api.dart</code></li>
+                      <li><code>lib/features/compare/repo/compare_api.dart</code></li>
+                      <li><code>lib/features/stores/repo/store_api.dart</code></li>
+                      <li><code>lib/features/checkout/repo/address_api.dart</code></li>
+                      <li><code>lib/features/profile/repo/profile_api.dart</code></li>
+                    </ul>
+                  </article>
+                </div>
+              </section>
+
+              <section id="api-admin" data-searchable>
+                <p class="section-kicker">Admin API</p>
+                <h2 class="section-title">Административный API</h2>
+                <div class="rounded-3xl border border-brand-100 bg-white p-6 shadow-soft">
+                  <p class="text-sm leading-7 text-slate-600">
+                    Префикс <code>/api/admin/</code>. Вход: <code>POST /api/admin/login</code> → Bearer с <code>scope:admin</code>.
+                    CRUD для товаров, категорий, заказов, пользователей, настроек, баннеров, продавцов, POS и др.
+                  </p>
+                  <pre class="code-block"><code>POST /api/admin/login
+GET  /api/admin/product/all
+POST /api/admin/order/update-status</code></pre>
+                </div>
+              </section>
+
+              <section id="mobile-client" data-searchable>
+                <p class="section-kicker">Flutter</p>
+                <h2 class="section-title">Мобильный API-клиент</h2>
+                <div class="grid gap-5 lg:grid-cols-2">
+                  <article class="feature-group">
+                    <h3>Dio setup</h3>
+                    <ul>
+                      <li><code>lib/core/api_client.dart</code> — shared Dio instance</li>
+                      <li><code>lib/core/config.dart</code> — baseUrl, tokens, imageUrl()</li>
+                      <li>Interceptor добавляет <code>Authorization: Bearer</code></li>
+                      <li>Timeout: 15 сек connect/receive</li>
+                    </ul>
+                  </article>
+                  <article class="feature-group">
+                    <h3>Конфигурация URL</h3>
+                    <ul>
+                      <li>Default: <code>https://ssboss.shop/api/v1</code></li>
+                      <li>Override: <code>.env</code> → API_BASE_URL</li>
+                      <li>Fallback: <code>assets/app_config.json</code></li>
+                      <li>CDN: <code>CDN_BASE_URL</code> для медиа</li>
+                    </ul>
+                  </article>
+                  <article class="feature-group">
+                    <h3>Токены</h3>
+                    <ul>
+                      <li><code>bearer_token</code> — общий Passport token</li>
+                      <li><code>mobile_bearer_token</code> — приоритет для mobile</li>
+                      <li><code>guest_token</code> — формат <code>g_{timestamp}_{random}</code></li>
+                      <li>Хранение: SharedPreferences</li>
+                    </ul>
+                  </article>
+                  <article class="feature-group">
+                    <h3>Feature modules</h3>
+                    <ul>
+                      <li><code>lib/features/auth/repo/auth_api.dart</code></li>
+                      <li><code>lib/features/catalog/repo/catalog_api.dart</code></li>
+                      <li><code>lib/features/cart/repo/cart_api.dart</code></li>
+                      <li><code>lib/features/orders/repo/order_api.dart</code></li>
+                      <li>State: Riverpod, routing: GoRouter</li>
+                    </ul>
+                  </article>
+                </div>
+              </section>
+
+              <section id="backend" data-searchable>
+                <p class="section-kicker">Backend</p>
+                <h2 class="section-title">Laravel Backend</h2>
+                <div class="grid gap-5 lg:grid-cols-2">
+                  <article class="feature-group">
+                    <h3>Ключевые директории</h3>
+                    <ul>
+                      <li><code>server_code/routes/api.php</code> — все API-маршруты</li>
+                      <li><code>server_code/app/Http/Controllers/</code></li>
+                      <li><code>server_code/app/Models/</code></li>
+                      <li><code>server_code/database/migrations/</code></li>
+                      <li><code>server_code/config/auth.php</code> — Passport guards</li>
+                    </ul>
+                  </article>
+                  <article class="feature-group">
+                    <h3>Auth guards</h3>
+                    <ul>
+                      <li><code>user</code> — покупатели (Passport)</li>
+                      <li><code>admin</code> — админ-панель (Passport)</li>
+                      <li>Provider: <code>users</code>, <code>admins</code></li>
+                    </ul>
+                  </article>
+                </div>
+              </section>
+
+              <section id="repo" data-searchable>
+                <p class="section-kicker">Repository</p>
+                <h2 class="section-title">Структура репозитория</h2>
+                <pre class="code-block"><code>ssboss_mobile_app_backup/
+├── lib/                    # Flutter app
+│   ├── core/               # api_client, config
+│   └── features/           # auth, cart, catalog, orders, ...
+├── assets/app_config.json
+├── pubspec.yaml
+└── server_code/            # Laravel + web builds
+    ├── routes/api.php
+    ├── app/
+    ├── public/docs/        # эта документация
+    ├── _nuxt/              # storefront SPA
+    ├── admin/              # admin SPA
+    └── uploads/            # медиа</code></pre>
+              </section>
+
+              <section id="setup" data-searchable>
+                <p class="section-kicker">Setup</p>
+                <h2 class="section-title">Локальная настройка</h2>
+                <div class="grid gap-5 lg:grid-cols-2">
+                  <article class="feature-group">
+                    <h3>Laravel (server_code)</h3>
+                    <ul>
+                      <li>Скопировать <code>.env.example</code> → <code>.env</code></li>
+                      <li>Настроить DB_* (MySQL по умолчанию)</li>
+                      <li><code>php artisan key:generate</code></li>
+                      <li><code>php artisan migrate</code></li>
+                      <li>Passport keys: <code>php artisan passport:install</code></li>
+                    </ul>
+                  </article>
+                  <article class="feature-group">
+                    <h3>Flutter</h3>
+                    <ul>
+                      <li><code>flutter pub get</code></li>
+                      <li>В <code>.env</code>: API_BASE_URL, AES_KEY, AES_IV</li>
+                      <li>iOS: <code>cd ios && pod install</code></li>
+                      <li>Firebase: <code>lib/firebase_options.dart</code></li>
+                    </ul>
+                  </article>
+                </div>
+              </section>
+
+              <section id="stack" data-searchable>
+                <p class="section-kicker">Stack</p>
+                <h2 class="section-title">Технологический стек</h2>
+                <div class="grid gap-5 xl:grid-cols-2">
+                  <article class="feature-group">
+                    <h3>Mobile</h3>
+                    <ul>
+                      <li>Flutter 3 / Dart 3.3+</li>
+                      <li>Riverpod, GoRouter, Dio</li>
+                      <li>Firebase Messaging, cached_network_image</li>
+                      <li>encrypt (AES checkout)</li>
+                    </ul>
+                  </article>
+                  <article class="feature-group">
+                    <h3>Backend & Web</h3>
+                    <ul>
+                      <li>Laravel 11 / PHP 8.2</li>
+                      <li>Laravel Passport 12</li>
+                      <li>MySQL, Spatie Permissions</li>
+                      <li>Nuxt SPA (pre-built), Vite</li>
+                      <li>Stripe, Razorpay, Flutterwave payments</li>
+                    </ul>
+                  </article>
+                </div>
+              </section>
+
+              <section id="integrations" data-searchable>
+                <p class="section-kicker">Integrations</p>
+                <h2 class="section-title">Внешние сервисы</h2>
+                <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                  <div class="tag-card"><strong>Firebase / FCM</strong><span>Push через POST /user/fcm-token</span></div>
+                  <div class="tag-card"><strong>Passport OAuth2</strong><span>Bearer auth для mobile и admin</span></div>
+                  <div class="tag-card"><strong>Google Analytics</strong><span>Настройка в admin panel settings</span></div>
+                  <div class="tag-card"><strong>Storage</strong><span>Local / S3 / Google Cloud Storage</span></div>
+                  <div class="tag-card"><strong>Payments</strong><span>Stripe, Razorpay, COD, bank transfer</span></div>
+                </div>
+                <p class="mt-4 text-sm text-slate-600">Доп. markdown в репозитории: <code>POSTMAN_SETUP_FCM_TOKEN.md</code>, <code>PUSH_NOTIFICATIONS_*.md</code></p>
+              </section>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+    <script src="./app.js"></script>
+  </body>
+</html>

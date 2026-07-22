@@ -1,0 +1,10 @@
+{
+  "latest_version": "1.0.6",
+  "latest_build": 14,
+  "min_version": "1.0.0",
+  "min_build": 1,
+  "force_update": false,
+  "android_store_url": "https://play.google.com/store/apps/details?id=com.ssboss.ssbossmp",
+  "ios_store_url": "https://apps.apple.com/search?term=SSBOSS",
+  "message": "Вышла новая версия приложения. Обновите его в App Store или Google Play, чтобы пользоваться всеми возможностями и исправлениями."
+}

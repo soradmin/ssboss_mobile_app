@@ -21,7 +21,9 @@ import '../../../core/result.dart';
 import '../models/media.dart';
 import '../widgets/product_price_row.dart';
 import '../widgets/product_grid_card.dart';
+import '../widgets/product_image_gallery_viewer.dart';
 import '../../favorites/repo/favorites_api.dart';
+import '../../stores/repo/store_api.dart';
 import '../../personalization/user_preference_service.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -42,6 +44,9 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
   Product? _currentProduct; // Локальная переменная для обновленного товара
   bool _isFavorite = false;
   bool _isLoadingFavorite = false;
+  bool _isFollowingStore = false;
+  bool _isLoadingStoreFollow = false;
+  int? _storeId;
   // Храним выбранные значения атрибутов: ключ - id атрибута, значение - id выбранного значения
   final Map<int, int> _selectedAttributes = {};
   // Рекомендуемые товары и товары "смотрели также"
@@ -62,6 +67,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
     // Подтягиваем полные данные (галерея + привязка фото к вариантам)
     _applyDefaultAttributeSelections(widget.p);
     _loadDetails();
+    unawaited(_loadStoreFollowStatus(widget.p));
     unawaited(UserPreferenceService.instance.recordView(widget.p));
     super.initState();
   }
@@ -171,6 +177,108 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
     }
   }
 
+  String? _resolveStoreSlug(Product product) {
+    String? slug = product.storeSlug;
+    if (slug == null || slug.isEmpty) {
+      final name = product.sellerName?.trim() ?? '';
+      if (name.isEmpty) return null;
+      slug = name
+          .toLowerCase()
+          .replaceAll(RegExp(r'[^\w\s-]'), '')
+          .replaceAll(RegExp(r'[\s_-]+'), '-')
+          .trim();
+    }
+    if (slug == null || slug.isEmpty) return null;
+    return slug;
+  }
+
+  Future<void> _loadStoreFollowStatus(Product product) async {
+    final slug = _resolveStoreSlug(product);
+    if (slug == null) return;
+
+    final result = await ref.read(storeApiProvider).getStoreBySlug(slug);
+    if (!mounted) return;
+    result.when(
+      ok: (store) {
+        setState(() {
+          _storeId = store.id;
+          _isFollowingStore = store.isFollowing;
+        });
+      },
+      err: (_) {},
+    );
+  }
+
+  Future<void> _toggleStoreFollow() async {
+    if (_isLoadingStoreFollow) return;
+
+    if (_storeId == null) {
+      final product = _currentProduct ?? widget.p;
+      await _loadStoreFollowStatus(product);
+      if (_storeId == null) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Не удалось найти магазин'),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 2),
+          ),
+        );
+        return;
+      }
+    }
+
+    setState(() => _isLoadingStoreFollow = true);
+
+    try {
+      final result =
+          await ref.read(storeApiProvider).toggleFollowStore(_storeId!);
+      if (!mounted) return;
+
+      result.when(
+        ok: (isFollowing) {
+          setState(() {
+            _isFollowingStore = isFollowing;
+            _isLoadingStoreFollow = false;
+          });
+          final storeName =
+              (_currentProduct ?? widget.p).sellerName ?? 'магазин';
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                isFollowing
+                    ? 'Подписались на $storeName'
+                    : 'Отписались от $storeName',
+              ),
+              backgroundColor: isFollowing ? Colors.green : Colors.orange,
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        },
+        err: (error) {
+          setState(() => _isLoadingStoreFollow = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Ошибка: $error'),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        },
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoadingStoreFollow = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Ошибка: $e'),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
   Future<void> _shareProduct() async {
     try {
       final product = _currentProduct ?? widget.p;
@@ -227,6 +335,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
         );
         _applyDefaultAttributeSelections(_currentProduct!);
       });
+      unawaited(_loadStoreFollowStatus(_currentProduct!));
     }
     // Загружаем рекомендуемые товары по умолчанию
     _loadRecommendedProducts();
@@ -452,6 +561,21 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
     // Создаем общий список медиа (изображения и видео)
     final List<Widget> mediaItems = [];
     final List<Widget> thumbnailItems = [];
+    final List<String> galleryImageUrls = _images
+        .map((img) => AppConfig.imageUrl(img.image))
+        .where((url) => url.isNotEmpty)
+        .toList();
+    if (galleryImageUrls.isEmpty && widget.p.image.isNotEmpty) {
+      galleryImageUrls.add(AppConfig.imageUrl(widget.p.image));
+    }
+
+    void openGalleryAt(int imageIndex) {
+      ProductImageGalleryViewer.open(
+        context,
+        imageUrls: galleryImageUrls,
+        initialIndex: imageIndex,
+      );
+    }
 
     // Добавляем изображения
     for (int i = 0; i < _images.length; i++) {
@@ -462,19 +586,22 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
           : fullImageUrl;
 
       mediaItems.add(
-        ClipRRect(
-          borderRadius: BorderRadius.circular(16),
-          child: CachedNetworkImage(
-            imageUrl: fullImageUrl,
-            fit: BoxFit.cover,
-            placeholder: (context, url) => Shimmer.fromColors(
-              baseColor: Colors.grey[300]!,
-              highlightColor: Colors.grey[100]!,
-              child: Container(color: Colors.white),
-            ),
-            errorWidget: (context, url, error) => const ColoredBox(
-              color: Color(0x11000000),
-              child: Center(child: Icon(Icons.image_not_supported_outlined)),
+        GestureDetector(
+          onTap: () => openGalleryAt(i),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: CachedNetworkImage(
+              imageUrl: fullImageUrl,
+              fit: BoxFit.cover,
+              placeholder: (context, url) => Shimmer.fromColors(
+                baseColor: Colors.grey[300]!,
+                highlightColor: Colors.grey[100]!,
+                child: Container(color: Colors.white),
+              ),
+              errorWidget: (context, url, error) => const ColoredBox(
+                color: Color(0x11000000),
+                child: Center(child: Icon(Icons.image_not_supported_outlined)),
+              ),
             ),
           ),
         ),
@@ -592,22 +719,30 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
     // Если нет дополнительных медиа, отображаем старое основное изображение
     if (mediaItems.isEmpty) {
       mediaItems.add(
-        ClipRRect(
-          borderRadius: BorderRadius.circular(16),
-          child: widget.p.image.isEmpty
-              ? const ColoredBox(color: Color(0x11000000), child: Center(child: Icon(Icons.image_not_supported_outlined)))
-              : CachedNetworkImage(
-            imageUrl: AppConfig.imageUrl(widget.p.image),
-            fit: BoxFit.cover,
-            placeholder: (context, url) => Shimmer.fromColors(
-              baseColor: Colors.grey[300]!,
-              highlightColor: Colors.grey[100]!,
-              child: Container(color: Colors.white),
-            ),
-            errorWidget: (context, url, error) => const ColoredBox(
-              color: Color(0x11000000),
-              child: Center(child: Icon(Icons.image_not_supported_outlined)),
-            ),
+        GestureDetector(
+          onTap: galleryImageUrls.isEmpty ? null : () => openGalleryAt(0),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: widget.p.image.isEmpty
+                ? const ColoredBox(
+                    color: Color(0x11000000),
+                    child: Center(child: Icon(Icons.image_not_supported_outlined)),
+                  )
+                : CachedNetworkImage(
+                    imageUrl: AppConfig.imageUrl(widget.p.image),
+                    fit: BoxFit.cover,
+                    placeholder: (context, url) => Shimmer.fromColors(
+                      baseColor: Colors.grey[300]!,
+                      highlightColor: Colors.grey[100]!,
+                      child: Container(color: Colors.white),
+                    ),
+                    errorWidget: (context, url, error) => const ColoredBox(
+                      color: Color(0x11000000),
+                      child: Center(
+                        child: Icon(Icons.image_not_supported_outlined),
+                      ),
+                    ),
+                  ),
           ),
         ),
       );
@@ -1225,15 +1360,8 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
   }
 
   void _openSellerStore(BuildContext context, Product product) {
-    String? slug = product.storeSlug;
-    if (slug == null || slug.isEmpty) {
-      slug = product.sellerName!
-          .toLowerCase()
-          .replaceAll(RegExp(r'[^\w\s-]'), '')
-          .replaceAll(RegExp(r'[\s_-]+'), '-')
-          .trim();
-    }
-    if (slug.isNotEmpty) {
+    final slug = _resolveStoreSlug(product);
+    if (slug != null && slug.isNotEmpty) {
       context.push('/store/$slug');
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1297,7 +1425,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
         Material(
           color: Colors.transparent,
           child: InkWell(
-            onTap: _toggleFavorite,
+            onTap: _toggleStoreFollow,
             borderRadius: BorderRadius.circular(12),
             child: Container(
               width: 44,
@@ -1306,14 +1434,14 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                 color: Colors.grey[100],
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: _isLoadingFavorite
+              child: _isLoadingStoreFollow
                   ? const Padding(
                       padding: EdgeInsets.all(12),
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
                   : Icon(
-                      _isFavorite ? Icons.favorite : Icons.favorite_border,
-                      color: _isFavorite ? Colors.red : Colors.black87,
+                      _isFollowingStore ? Icons.favorite : Icons.favorite_border,
+                      color: _isFollowingStore ? Colors.red : Colors.black87,
                       size: 22,
                     ),
             ),

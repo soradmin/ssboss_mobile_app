@@ -453,7 +453,7 @@ class CartApi {
         'pickup_price': '0.00',
         'pickup_point': 1,
         'shipping_rule_id': 1,
-        'pickup_phone': '930900412',
+        'pickup_phone': '99 099 0955',
         'pickup_address_line_1': 'улица Джаббора Расулова, 6/1',
         'pickup_address_line_2': null,
         'pickup_zip': '734000',

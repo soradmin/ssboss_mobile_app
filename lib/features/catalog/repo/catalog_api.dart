@@ -163,13 +163,14 @@ class CatalogApi {
     String? collection,
     String? search,
     int? categoryId,
+    int? brandId,
   }) async {
     try {
       final queryParams = <String, dynamic>{
         'page': page,
         'sortby': '',
         'shipping': '',
-        'brand': '',
+        'brand': brandId != null && brandId > 0 ? brandId.toString() : '',
         'collection': '',
         'rating': 0,
         'max': 0,
@@ -191,18 +192,25 @@ class CatalogApi {
         queryParams['collection'] = collection.trim();
         print('[DEBUG] CatalogApi.products: collection="${queryParams['collection']}"');
       }
+      if (brandId != null && brandId > 0) {
+        print('[DEBUG] CatalogApi.products: brand=$brandId');
+      }
       
       print('[DEBUG] API Request params: $queryParams');
       print('[DEBUG] CatalogApi.products: Финальный queryParams[category]=${queryParams['category']}');
       print('[DEBUG] CatalogApi.products: Финальный queryParams[collection]=${queryParams['collection']}');
+      print('[DEBUG] CatalogApi.products: Финальный queryParams[brand]=${queryParams['brand']}');
       
-      // Используем endpoint /all если указана категория, иначе /products
-      // На сайте используется /all/{slug}, но API принимает category как query параметр
+      // Используем endpoint /all если указана категория или бренд, иначе /products
+      // На сайте используется /all/{slug}, но API принимает category/brand как query
       Response res;
-      if (category != null && category.isNotEmpty) {
-        final trimmedSlug = category.trim();
-        print('[DEBUG] CatalogApi.products: Используем endpoint /all с category="$trimmedSlug"');
-        // Используем endpoint /all с параметром category в query string
+      if ((category != null && category.isNotEmpty) ||
+          (brandId != null && brandId > 0)) {
+        final trimmedSlug = category?.trim() ?? '';
+        print(
+          '[DEBUG] CatalogApi.products: Используем endpoint /all '
+          '(category="$trimmedSlug", brand=$brandId)',
+        );
         res = await dio.get('/all', queryParameters: queryParams);
       } else {
         res = await dio.get('/products', queryParameters: queryParams);
@@ -2165,7 +2173,9 @@ class CatalogApi {
                       final json = item as Map<String, dynamic>;
                       print('[DEBUG] Парсинг бренда: title=${json['title']}, image=${json['image']}');
                       return Brand(
-                        id: (json['id'] ?? 0) as int,
+                        id: (json['id'] is int)
+                            ? json['id'] as int
+                            : int.tryParse(json['id']?.toString() ?? '') ?? 0,
                         name: (json['title'] ?? '').toString(),
                         logo: (json['image'] ?? '').toString(),
                         slug: json['slug']?.toString(),
