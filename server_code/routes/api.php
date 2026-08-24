@@ -622,17 +622,9 @@ Route::group([
     Route::get('home', [FrontendController::class, 'home']);
     Route::get('app-version', function () {
         $path = public_path('app-version.json');
+        // Нет файла — нет проверки обновлений в приложении.
         if (!file_exists($path)) {
-            return response()->json([
-                'latest_version' => '1.0.5',
-                'latest_build' => 13,
-                'min_version' => '1.0.0',
-                'min_build' => 1,
-                'force_update' => false,
-                'android_store_url' => 'https://play.google.com/store/apps/details?id=com.ssboss.ssbossmp',
-                'ios_store_url' => 'https://apps.apple.com/search?term=SSBOSS',
-                'message' => 'Вышла новая версия приложения. Обновите его в магазине приложений.',
-            ]);
+            return response()->json(['message' => 'Not found'], 404);
         }
         return response()->file($path, [
             'Content-Type' => 'application/json',
@@ -740,6 +732,10 @@ Route::group([
         Route::post('signin', [UsersController::class, 'login']);
         Route::post('signup', [UsersController::class, 'signup']);
         Route::post('verify', [UsersController::class, 'verify']);
+        Route::post('otp/send', [UsersController::class, 'sendOtp'])
+            ->middleware('throttle:10,1');
+        Route::post('otp/verify', [UsersController::class, 'verifyOtp'])
+            ->middleware('throttle:20,1');
         Route::post('forgot-password', [UsersController::class, 'forgotPassword'])
             ->middleware('throttle:email');
         Route::post('update-password', [UsersController::class, 'updatePassword']);

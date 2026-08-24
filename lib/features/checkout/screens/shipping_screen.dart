@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/widgets/bottom_navigation_bar.dart';
+import '../../../core/l10n/locale_controller.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../auth/screens/login_screen.dart';
 import '../models/address.dart';
@@ -107,6 +108,7 @@ class _ShippingScreenState extends ConsumerState<ShippingScreen> {
 
   @override
   Widget build(BuildContext context) {
+    ref.watch(localeControllerProvider);
     final user = ref.watch(authProvider);
     final cartItems = ref.watch(cartProvider);
     final theme = Theme.of(context);
@@ -147,9 +149,9 @@ class _ShippingScreenState extends ConsumerState<ShippingScreen> {
             ),
           ),
         ),
-        title: const Text(
-          'Оформление заказа',
-          style: TextStyle(
+        title: Text(
+          context.tr('checkout.title'),
+          style: const TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.bold,
           ),
@@ -164,6 +166,7 @@ class _ShippingScreenState extends ConsumerState<ShippingScreen> {
           : error != null
               ? _buildErrorScreen(context, theme)
               : _buildShippingContent(context, theme),
+      extendBody: true,
       bottomNavigationBar: const BottomNavigationBarWidget(selectedIndex: 2),
     );
   }
@@ -185,9 +188,9 @@ class _ShippingScreenState extends ConsumerState<ShippingScreen> {
             ),
           ),
         ),
-        title: const Text(
-          'Оформление заказа',
-          style: TextStyle(
+        title: Text(
+          context.tr('checkout.title'),
+          style: const TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.bold,
           ),
@@ -210,7 +213,7 @@ class _ShippingScreenState extends ConsumerState<ShippingScreen> {
               ),
               const SizedBox(height: 24),
               Text(
-                'Для оформления заказа\nнеобходимо войти в аккаунт',
+                context.tr('checkout.need_login'),
                 textAlign: TextAlign.center,
                 style: theme.textTheme.headlineSmall?.copyWith(
                   color: theme.colorScheme.onSurface,
@@ -244,9 +247,9 @@ class _ShippingScreenState extends ConsumerState<ShippingScreen> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  child: const Text(
-                    'Войти в аккаунт',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  child: Text(
+                    context.tr('checkout.login_account'),
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
                 ),
               ),
@@ -254,6 +257,7 @@ class _ShippingScreenState extends ConsumerState<ShippingScreen> {
           ),
         ),
       ),
+      extendBody: true,
       bottomNavigationBar: const BottomNavigationBarWidget(selectedIndex: 2),
     );
   }
@@ -272,7 +276,7 @@ class _ShippingScreenState extends ConsumerState<ShippingScreen> {
             ),
             const SizedBox(height: 24),
             Text(
-              'Ошибка загрузки адресов',
+              context.tr('catalog.load_error'),
               style: theme.textTheme.headlineSmall?.copyWith(
                 color: theme.colorScheme.onSurface,
               ),
@@ -310,7 +314,7 @@ class _ShippingScreenState extends ConsumerState<ShippingScreen> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-                child: const Text('Повторить'),
+                child: Text(context.tr('common.retry')),
               ),
             ),
           ],
@@ -351,8 +355,8 @@ class _ShippingScreenState extends ConsumerState<ShippingScreen> {
                 const SizedBox(width: 12),
                 Text(
                   totalQuantity > 0 
-                    ? '$totalQuantity ${_getQuantityText(totalQuantity)}, ${totalAmount.toStringAsFixed(2)} с.'
-                    : 'Корзина пуста',
+                    ? '$totalQuantity ${_getQuantityText(totalQuantity)}, ${totalAmount.toStringAsFixed(2)} ${context.tr('common.currency')}'
+                    : context.tr('checkout.cart_empty'),
                   style: theme.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
@@ -365,7 +369,7 @@ class _ShippingScreenState extends ConsumerState<ShippingScreen> {
           
           // Выбор способа доставки
           Text(
-            'Способ доставки',
+            context.tr('checkout.delivery_method'),
             style: theme.textTheme.headlineSmall?.copyWith(
               fontWeight: FontWeight.bold,
             ),
@@ -390,6 +394,8 @@ class _ShippingScreenState extends ConsumerState<ShippingScreen> {
                         onTap: () {
                           setState(() {
                             selectedDeliveryType = 'pickup';
+                            final pickups = addresses.where((a) => a.type == 'pickup');
+                            selectedAddress = pickups.isEmpty ? null : pickups.first;
                           });
                         },
                         borderRadius: BorderRadius.circular(16),
@@ -426,7 +432,7 @@ class _ShippingScreenState extends ConsumerState<ShippingScreen> {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Text(
-                                'Пункт выдачи',
+                                context.tr('checkout.pickup'),
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
                                   color: selectedDeliveryType == 'pickup'
@@ -441,7 +447,7 @@ class _ShippingScreenState extends ConsumerState<ShippingScreen> {
                               if (selectedDeliveryType == 'pickup') ...[
                                 const SizedBox(height: 4),
                                 Text(
-                                  'Бесплатно',
+                                  context.tr('checkout.free'),
                                   textAlign: TextAlign.center,
                                   style: TextStyle(
                                     color: Colors.white.withOpacity(0.9),
@@ -467,6 +473,10 @@ class _ShippingScreenState extends ConsumerState<ShippingScreen> {
                         onTap: () {
                           setState(() {
                             selectedDeliveryType = 'delivery';
+                            final deliveries =
+                                addresses.where((a) => a.type == 'delivery');
+                            selectedAddress =
+                                deliveries.isEmpty ? null : deliveries.first;
                           });
                         },
                         borderRadius: BorderRadius.circular(16),
@@ -503,7 +513,7 @@ class _ShippingScreenState extends ConsumerState<ShippingScreen> {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Text(
-                                'Курьер',
+                                context.tr('checkout.courier'),
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
                                   color: selectedDeliveryType == 'delivery'
@@ -554,24 +564,22 @@ class _ShippingScreenState extends ConsumerState<ShippingScreen> {
             width: double.infinity,
             child: Container(
               decoration: BoxDecoration(
-                gradient: selectedAddress != null && totalQuantity > 0
+                gradient: totalQuantity > 0
                     ? const LinearGradient(
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                         colors: [
-                          Color(0xFF9C27B0), // Основной фиолетовый
-                          Color(0xFFE040FB), // Светло-фиолетовый
+                          Color(0xFF9C27B0),
+                          Color(0xFFE040FB),
                         ],
                         stops: [0.0, 1.0],
                       )
                     : null,
-                color: selectedAddress == null || totalQuantity == 0
-                    ? Colors.grey[300]
-                    : null,
+                color: totalQuantity == 0 ? Colors.grey[300] : null,
                 borderRadius: BorderRadius.circular(12),
               ),
               child: ElevatedButton(
-                onPressed: selectedAddress != null && totalQuantity > 0 ? _proceedToPayment : null,
+                onPressed: totalQuantity > 0 ? _proceedToPayment : null,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.transparent,
                   shadowColor: Colors.transparent,
@@ -582,9 +590,9 @@ class _ShippingScreenState extends ConsumerState<ShippingScreen> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-                child: const Text(
-                  'Перейти к оплате',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                child: Text(
+                  context.tr('checkout.go_to_payment'),
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
               ),
             ),
@@ -598,7 +606,9 @@ class _ShippingScreenState extends ConsumerState<ShippingScreen> {
     final pickupAddresses = addresses.where((a) => a.type == 'pickup').toList();
     
     if (pickupAddresses.isEmpty) {
-      return Container(
+      return SizedBox(
+        width: double.infinity,
+        child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: theme.colorScheme.surface,
@@ -614,7 +624,7 @@ class _ShippingScreenState extends ConsumerState<ShippingScreen> {
             ),
             const SizedBox(height: 12),
             Text(
-              'Нет доступных пунктов выдачи',
+              context.tr('checkout.no_pickups'),
               style: theme.textTheme.titleMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
@@ -628,6 +638,7 @@ class _ShippingScreenState extends ConsumerState<ShippingScreen> {
             ),
           ],
         ),
+        ),
       );
     }
 
@@ -635,7 +646,7 @@ class _ShippingScreenState extends ConsumerState<ShippingScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Выберите пункт выдачи',
+          context.tr('checkout.select_pickup'),
           style: theme.textTheme.titleMedium?.copyWith(
             fontWeight: FontWeight.bold,
           ),
@@ -650,55 +661,24 @@ class _ShippingScreenState extends ConsumerState<ShippingScreen> {
     final deliveryAddresses = addresses.where((a) => a.type == 'delivery').toList();
     
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              'Адреса доставки',
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            Container(
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    Color(0xFF9C27B0), // Основной фиолетовый
-                    Color(0xFFE040FB), // Светло-фиолетовый
-                  ],
-                  stops: [0.0, 1.0],
-                ),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: TextButton.icon(
-                onPressed: () => _addNewAddress(context),
-                icon: const Icon(Icons.add, size: 18, color: Colors.white),
-                label: const Text('Добавить', style: TextStyle(color: Colors.white)),
-                style: TextButton.styleFrom(
-                  backgroundColor: Colors.transparent,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-              ),
-            ),
-          ],
+        Text(
+          context.tr('checkout.delivery_addresses'),
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.bold,
+          ),
         ),
         const SizedBox(height: 12),
         
         if (deliveryAddresses.isEmpty) ...[
           Container(
-            padding: const EdgeInsets.all(16),
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 28),
             decoration: BoxDecoration(
-              color: theme.colorScheme.surface,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: theme.colorScheme.outline.withOpacity(0.3)),
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFFE8E0EF)),
             ),
             child: Column(
               children: [
@@ -709,44 +689,47 @@ class _ShippingScreenState extends ConsumerState<ShippingScreen> {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  'Нет сохраненных адресов',
+                  context.tr('checkout.no_addresses'),
+                  textAlign: TextAlign.center,
                   style: theme.textTheme.titleMedium?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Добавьте адрес для доставки курьером',
+                  context.tr('checkout.add_address_hint'),
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
                   textAlign: TextAlign.center,
                 ),
-                const SizedBox(height: 16),
-                Container(
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        Color(0xFF9C27B0), // Основной фиолетовый
-                        Color(0xFFE040FB), // Светло-фиолетовый
-                      ],
-                      stops: [0.0, 1.0],
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          Color(0xFF9C27B0),
+                          Color(0xFFE040FB),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: ElevatedButton.icon(
-                    onPressed: () => _addNewAddress(context),
-                    icon: const Icon(Icons.add, color: Colors.white),
-                    label: const Text('Добавить адрес', style: TextStyle(color: Colors.white)),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.transparent,
-                      shadowColor: Colors.transparent,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                    child: ElevatedButton.icon(
+                      onPressed: () => _addNewAddress(context),
+                      icon: const Icon(Icons.add, color: Colors.white),
+                      label: Text(context.tr('checkout.add_address'), style: const TextStyle(color: Colors.white)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.transparent,
+                        shadowColor: Colors.transparent,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
                     ),
                   ),
@@ -755,6 +738,14 @@ class _ShippingScreenState extends ConsumerState<ShippingScreen> {
             ),
           ),
         ] else ...[
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              onPressed: () => _addNewAddress(context),
+              icon: const Icon(Icons.add, size: 18),
+              label: Text(context.tr('checkout.add_address')),
+            ),
+          ),
           ...deliveryAddresses.map((address) => _buildAddressCard(context, theme, address)),
         ],
       ],
@@ -939,11 +930,11 @@ class _ShippingScreenState extends ConsumerState<ShippingScreen> {
 
   String _getQuantityText(int quantity) {
     if (quantity % 10 == 1 && quantity % 100 != 11) {
-      return 'товар';
+      return context.tr('plurals.product_one');
     } else if ([2, 3, 4].contains(quantity % 10) && ![12, 13, 14].contains(quantity % 100)) {
-      return 'товара';
+      return context.tr('plurals.product_few');
     } else {
-      return 'товаров';
+      return context.tr('plurals.product_many');
     }
   }
 
@@ -972,19 +963,31 @@ class _ShippingScreenState extends ConsumerState<ShippingScreen> {
     
     if (cartItems.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Корзина пуста. Добавьте товары для оформления заказа.'),
+        SnackBar(
+          content: Text(context.tr('checkout.cart_empty')),
           backgroundColor: Colors.orange,
         ),
       );
       return;
     }
     
-    if (selectedAddress == null) {
+    if (selectedDeliveryType == 'delivery') {
+      final hasDeliveryAddress =
+          selectedAddress != null && selectedAddress!.type == 'delivery';
+      if (!hasDeliveryAddress) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(context.tr('checkout.need_address')),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+        return;
+      }
+    } else if (selectedAddress == null || selectedAddress!.type != 'pickup') {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Выберите адрес доставки'),
-          backgroundColor: Colors.orange,
+        SnackBar(
+          content: Text(context.tr('checkout.select_pickup')),
+          duration: const Duration(seconds: 2),
         ),
       );
       return;

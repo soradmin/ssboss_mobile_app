@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/date_formatter.dart';
+import '../../../core/l10n/locale_controller.dart';
 import '../../../theme.dart';
 import '../../../core/widgets/bottom_navigation_bar.dart';
 import '../models/order.dart';
@@ -52,6 +53,7 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
 
   @override
   Widget build(BuildContext context) {
+    ref.watch(localeControllerProvider);
     return Scaffold(
       backgroundColor: backgroundColor,
       appBar: AppBar(
@@ -69,9 +71,9 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
             ),
           ),
         ),
-        title: const Text(
-          'Мои заказы',
-          style: TextStyle(
+        title: Text(
+          context.tr('orders.title'),
+          style: const TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.bold,
           ),
@@ -93,6 +95,7 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
               : _orders.isEmpty
                   ? _buildEmptyState()
                   : _buildOrdersList(),
+      extendBody: true,
       bottomNavigationBar: const BottomNavigationBarWidget(selectedIndex: 4),
     );
   }
@@ -117,9 +120,9 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
               ),
             ),
             const SizedBox(height: 32),
-            const Text(
-              'Ошибка загрузки',
-              style: TextStyle(
+            Text(
+              context.tr('catalog.load_error'),
+              style: const TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
                 color: Color(0xFF1A1A1A),
@@ -167,14 +170,14 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
                     borderRadius: BorderRadius.circular(16),
                   ),
                 ),
-                child: const Row(
+                child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.refresh, size: 20),
-                    SizedBox(width: 8),
+                    const Icon(Icons.refresh, size: 20),
+                    const SizedBox(width: 8),
                     Text(
-                      'Повторить',
-                      style: TextStyle(
+                      context.tr('common.retry'),
+                      style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
                       ),
@@ -209,9 +212,9 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
               ),
             ),
             const SizedBox(height: 32),
-            const Text(
-              'У вас пока нет заказов',
-              style: TextStyle(
+            Text(
+              context.tr('orders.empty'),
+              style: const TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
                 color: Color(0xFF1A1A1A),
@@ -220,7 +223,7 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
             ),
             const SizedBox(height: 12),
             Text(
-              'Сделайте свой первый заказ и он появится здесь!',
+              context.tr('orders.empty_hint'),
               style: TextStyle(
                 fontSize: 16,
                 color: Colors.grey[600],
@@ -259,14 +262,14 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
                     borderRadius: BorderRadius.circular(16),
                   ),
                 ),
-                child: const Row(
+                child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.shopping_cart, size: 20),
-                    SizedBox(width: 8),
+                    const Icon(Icons.shopping_cart, size: 20),
+                    const SizedBox(width: 8),
                     Text(
-                      'Перейти к покупкам',
-                      style: TextStyle(
+                      context.tr('orders.go_shopping'),
+                      style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
                       ),
@@ -370,7 +373,7 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Заказ',
+                            context.tr('orders.order'),
                             style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w500,
@@ -499,7 +502,7 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
                               ),
                               const SizedBox(width: 12),
                               Text(
-                                'Сумма',
+                                context.tr('orders.amount'),
                                 style: TextStyle(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w600,
@@ -509,7 +512,7 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
                             ],
                           ),
                           Text(
-                            '${order.totalAmount.toStringAsFixed(2)} с.',
+                            '${order.totalAmount.toStringAsFixed(2)} ${context.tr('common.currency')}',
                             style: const TextStyle(
                               fontSize: 20,
                               fontWeight: FontWeight.bold,
@@ -547,7 +550,7 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
                               ),
                               const SizedBox(width: 12),
                               Text(
-                                'Оплата',
+                                context.tr('orders.payment'),
                                 style: TextStyle(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w600,
@@ -641,7 +644,7 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
                       ),
                       const SizedBox(width: 10),
                       Text(
-                        'Товары (${order.items.length})',
+                        context.tr('orders.items', namedArgs: {'count': '${order.items.length}'}),
                         style: TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.bold,
@@ -720,7 +723,7 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
                     Padding(
                       padding: const EdgeInsets.only(top: 6, left: 22),
                       child: Text(
-                        '... и еще ${order.items.length - 2} товаров',
+                        '... ${context.tr('orders.and_more', namedArgs: {'count': '${order.items.length - 2}'})}',
                         style: TextStyle(
                           color: Colors.grey[500],
                           fontSize: 13,
@@ -753,9 +756,9 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          'Подробнее',
-                          style: TextStyle(
-                            color: const Color(0xFF9C27B0),
+                          context.tr('orders.more'),
+                          style: const TextStyle(
+                            color: Color(0xFF9C27B0),
                             fontSize: 14,
                             fontWeight: FontWeight.bold,
                             letterSpacing: 0.2,

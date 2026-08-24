@@ -12,7 +12,9 @@ import 'features/checkout/screens/shipping_screen.dart';
 import 'features/checkout/screens/address_form_screen.dart';
 import 'features/checkout/screens/payment_screen.dart';
 import 'features/auth/screens/login_screen.dart';
-import 'features/auth/screens/register_screen.dart';
+import 'features/auth/screens/otp_verify_screen.dart';
+import 'features/auth/screens/forgot_password_screen.dart';
+import 'features/auth/screens/reset_password_screen.dart';
 import 'features/profile/screens/addresses_screen.dart';
 import 'features/orders/screens/orders_screen.dart';
 import 'features/orders/screens/order_details_screen.dart';
@@ -98,7 +100,41 @@ final appRouter = GoRouter(
           },
         ),
                 GoRoute(path: 'login', builder: (_, __) => const LoginScreen()),
-                GoRoute(path: 'register', builder: (_, __) => const RegisterScreen()),
+        GoRoute(
+          path: 'otp-verify',
+          builder: (context, state) {
+            final extra = state.extra as Map<String, dynamic>?;
+            final phone = extra?['phone']?.toString() ?? '';
+            if (phone.isEmpty) {
+              return const LoginScreen();
+            }
+            return OtpVerifyScreen(
+              phone: phone,
+              name: extra?['name']?.toString(),
+            );
+          },
+        ),
+        GoRoute(
+          path: 'register',
+          redirect: (_, __) => '/login',
+          builder: (_, __) => const LoginScreen(),
+        ),
+                GoRoute(
+                  path: 'forgot-password',
+                  builder: (_, __) => const ForgotPasswordScreen(),
+                ),
+                GoRoute(
+                  path: 'reset-password',
+                  builder: (context, state) {
+                    final email = state.extra is String
+                        ? state.extra as String
+                        : (state.uri.queryParameters['email'] ?? '');
+                    if (email.isEmpty) {
+                      return const ForgotPasswordScreen();
+                    }
+                    return ResetPasswordScreen(email: email);
+                  },
+                ),
                 GoRoute(path: 'favorites', builder: (_, __) => const FavoritesScreen()),
                 GoRoute(path: 'compare', builder: (_, __) => const CompareScreen()),
                 GoRoute(path: 'profile', builder: (_, __) => const ProfileScreen()),
@@ -109,6 +145,7 @@ final appRouter = GoRouter(
                     return EditProfileScreen(
                       currentName: extra?['name'] ?? '',
                       currentEmail: extra?['email'] ?? '',
+                      currentPhone: extra?['phone'] ?? '',
                     );
                   },
                 ),

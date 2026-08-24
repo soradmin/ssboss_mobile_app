@@ -375,7 +375,7 @@
         "sentEmail": "We have sent you and email containing a code. Please paste the code below in order to verify your account."
     },
     "shipping": {
-        "instruction": "Delivery instruction",
+        "instruction": "Additional information, landmarks",
         "ordered": "Ordered Products",
         "addAddress": "Please add an address first.",
         "unableShipped": "Product is unable to be shipped.",

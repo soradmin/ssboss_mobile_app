@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/api_client.dart';
+import '../../../core/config.dart';
 import '../../../core/result.dart';
 import '../../catalog/models/product.dart';
 
@@ -9,6 +10,8 @@ final favoritesApiProvider = Provider<FavoritesApi>((ref) {
 });
 
 class FavoritesApi {
+  static const needAuth = 'NEED_AUTH';
+
   final Dio _apiClient;
 
   FavoritesApi(this._apiClient);
@@ -102,6 +105,9 @@ class FavoritesApi {
 
   /// Добавить товар в избранное
   Future<Result<bool>> addToFavorites(int productId) async {
+    if (!AppConfig.hasActiveToken()) {
+      return const Err(needAuth);
+    }
     try {
       print('[DEBUG] FavoritesApi.addToFavorites: Добавляем товар $productId в избранное');
       
@@ -121,6 +127,9 @@ class FavoritesApi {
       return Err('Не удалось добавить товар в избранное: ${response.statusCode}');
     } on DioException catch (e) {
       print('[DEBUG] FavoritesApi.addToFavorites: DioException: ${e.message}');
+      if (e.response?.statusCode == 401) {
+        return const Err(needAuth);
+      }
       return Err('Ошибка добавления в избранное: ${e.message}');
     } catch (e) {
       print('[DEBUG] FavoritesApi.addToFavorites: Общая ошибка: $e');
@@ -130,6 +139,9 @@ class FavoritesApi {
 
   /// Удалить товар из избранного
   Future<Result<bool>> removeFromFavorites(int productId) async {
+    if (!AppConfig.hasActiveToken()) {
+      return const Err(needAuth);
+    }
     try {
       print('[DEBUG] FavoritesApi.removeFromFavorites: Удаляем товар $productId из избранного');
       
@@ -149,6 +161,9 @@ class FavoritesApi {
       return Err('Не удалось удалить товар из избранного: ${response.statusCode}');
     } on DioException catch (e) {
       print('[DEBUG] FavoritesApi.removeFromFavorites: DioException: ${e.message}');
+      if (e.response?.statusCode == 401) {
+        return const Err(needAuth);
+      }
       return Err('Ошибка удаления из избранного: ${e.message}');
     } catch (e) {
       print('[DEBUG] FavoritesApi.removeFromFavorites: Общая ошибка: $e');

@@ -1,3 +1,4 @@
+import '../../../core/config.dart';
 import '../../../core/date_formatter.dart';
 
 class Store {
@@ -16,6 +17,13 @@ class Store {
   final String? email;
   final String? phone;
   final String? address;
+
+  String get resolvedLogoUrl {
+    final raw = (logo ?? '').trim();
+    if (raw.isEmpty || raw == 'null') return '';
+    if (raw.startsWith('http')) return raw;
+    return AppConfig.imageUrl(raw);
+  }
 
   const Store({
     required this.id,
@@ -127,7 +135,9 @@ class Store {
       storeName = json['seller_name'] as String?;
     }
     
-    final finalName = storeName?.trim() ?? 'Неизвестный магазин';
+    final finalName = (storeName != null && storeName.trim().isNotEmpty)
+        ? storeName.trim()
+        : 'SSBOSS';
     print('[DEBUG] Store.fromJson: Финальное название магазина: $finalName');
     
     return Store(
@@ -135,7 +145,11 @@ class Store {
       name: finalName,
       slug: json['slug'] as String? ?? '',
       description: json['description'] as String? ?? json['meta_description'] as String?,
-      logo: json['logo'] as String? ?? json['image'] as String?,
+      logo: _nonEmpty(json['logo']) ??
+          _nonEmpty(json['image']) ??
+          _nonEmpty(json['photo']) ??
+          _nonEmpty(json['thumb']) ??
+          _nonEmpty(json['avatar']),
       banner: json['banner'] as String?,
       rating: storeRating,
       totalProducts: productsCount,
@@ -231,4 +245,11 @@ class Store {
       address: address,
     );
   }
+}
+
+String? _nonEmpty(dynamic value) {
+  if (value == null) return null;
+  final s = value.toString().trim();
+  if (s.isEmpty || s == 'null') return null;
+  return s;
 }

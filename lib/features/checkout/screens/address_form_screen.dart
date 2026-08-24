@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/widgets/bottom_navigation_bar.dart';
+import '../../../core/l10n/locale_controller.dart';
 import '../models/address.dart';
 import '../repo/address_api.dart';
 import '../../../core/result.dart';
@@ -160,7 +161,7 @@ class _AddressFormScreenState extends ConsumerState<AddressFormScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(isEditing ? 'Адрес обновлен!' : 'Адрес добавлен!'),
+              content: Text(isEditing ? context.tr('address.updated') : context.tr('address.added')),
               backgroundColor: Colors.green,
             ),
           );
@@ -178,7 +179,7 @@ class _AddressFormScreenState extends ConsumerState<AddressFormScreen> {
       }
     } catch (e) {
       setState(() {
-        _errorMessage = 'Произошла ошибка: $e';
+        _errorMessage = '${context.tr('common.error')}: $e';
       });
     } finally {
       if (mounted) {
@@ -199,6 +200,7 @@ class _AddressFormScreenState extends ConsumerState<AddressFormScreen> {
 
   @override
   Widget build(BuildContext context) {
+    ref.watch(localeControllerProvider);
     final theme = Theme.of(context);
     
     return Scaffold(
@@ -218,7 +220,7 @@ class _AddressFormScreenState extends ConsumerState<AddressFormScreen> {
           ),
         ),
         title: Text(
-          isEditing ? 'Редактировать адрес' : 'Добавить адрес',
+          isEditing ? context.tr('address.title_edit') : context.tr('address.title_add'),
           style: const TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.bold,
@@ -239,14 +241,14 @@ class _AddressFormScreenState extends ConsumerState<AddressFormScreen> {
               // 1. Название адреса
               TextFormField(
                 controller: _nameController,
-                decoration: const InputDecoration(
-                  labelText: 'Название адреса *',
-                  hintText: 'Например: Дом, Работа',
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  labelText: context.tr('address.name'),
+                  hintText: context.tr('address.name_hint'),
+                  border: const OutlineInputBorder(),
                 ),
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
-                    return 'Введите название адреса';
+                    return context.tr('address.name');
                   }
                   return null;
                 },
@@ -257,9 +259,9 @@ class _AddressFormScreenState extends ConsumerState<AddressFormScreen> {
               // 2. Страна
               DropdownButtonFormField<String>(
                 value: _selectedCountryCode,
-                decoration: const InputDecoration(
-                  labelText: 'Страна *',
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  labelText: context.tr('address.country'),
+                  border: const OutlineInputBorder(),
                 ),
                 items: _countries.map((country) {
                   return DropdownMenuItem<String>(
@@ -276,7 +278,7 @@ class _AddressFormScreenState extends ConsumerState<AddressFormScreen> {
                 },
                 validator: (value) {
                   if (value == null || value.isEmpty) {
-                    return 'Выберите страну';
+                    return context.tr('address.country');
                   }
                   return null;
                 },
@@ -287,9 +289,9 @@ class _AddressFormScreenState extends ConsumerState<AddressFormScreen> {
               // 3. Область
               DropdownButtonFormField<String>(
                 value: _selectedRegionCode,
-                decoration: const InputDecoration(
-                  labelText: 'Область *',
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  labelText: context.tr('address.region'),
+                  border: const OutlineInputBorder(),
                 ),
                 items: _regions.map((region) {
                   return DropdownMenuItem<String>(
@@ -306,7 +308,7 @@ class _AddressFormScreenState extends ConsumerState<AddressFormScreen> {
                 },
                 validator: (value) {
                   if (value == null || value.isEmpty) {
-                    return 'Выберите область';
+                    return context.tr('address.region');
                   }
                   return null;
                 },
@@ -317,14 +319,14 @@ class _AddressFormScreenState extends ConsumerState<AddressFormScreen> {
               // 4. Город
               TextFormField(
                 controller: _cityController,
-                decoration: const InputDecoration(
-                  labelText: 'Город *',
+                decoration: InputDecoration(
+                  labelText: context.tr('address.city'),
                   hintText: 'Душанбе',
-                  border: OutlineInputBorder(),
+                  border: const OutlineInputBorder(),
                 ),
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
-                    return 'Введите город';
+                    return context.tr('address.city');
                   }
                   return null;
                 },
@@ -335,15 +337,15 @@ class _AddressFormScreenState extends ConsumerState<AddressFormScreen> {
               // 5. Адрес
               TextFormField(
                 controller: _addressController,
-                decoration: const InputDecoration(
-                  labelText: 'Адрес *',
+                decoration: InputDecoration(
+                  labelText: context.tr('address.address'),
                   hintText: 'Улица, дом, квартира',
-                  border: OutlineInputBorder(),
+                  border: const OutlineInputBorder(),
                 ),
                 maxLines: 2,
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
-                    return 'Введите адрес';
+                    return context.tr('address.address');
                   }
                   return null;
                 },
@@ -354,10 +356,10 @@ class _AddressFormScreenState extends ConsumerState<AddressFormScreen> {
               // 6. Почтовый индекс
               TextFormField(
                 controller: _postalCodeController,
-                decoration: const InputDecoration(
-                  labelText: 'Почтовый индекс',
+                decoration: InputDecoration(
+                  labelText: context.tr('address.zip'),
                   hintText: '734042',
-                  border: OutlineInputBorder(),
+                  border: const OutlineInputBorder(),
                 ),
                 keyboardType: TextInputType.number,
               ),
@@ -367,10 +369,10 @@ class _AddressFormScreenState extends ConsumerState<AddressFormScreen> {
               // 7. Телефон
               TextFormField(
                 controller: _phoneController,
-                decoration: const InputDecoration(
-                  labelText: 'Телефон',
+                decoration: InputDecoration(
+                  labelText: context.tr('address.phone'),
                   hintText: '+992 XX XXX XXXX',
-                  border: OutlineInputBorder(),
+                  border: const OutlineInputBorder(),
                 ),
                 keyboardType: TextInputType.phone,
               ),
@@ -429,7 +431,7 @@ class _AddressFormScreenState extends ConsumerState<AddressFormScreen> {
                           ),
                         )
                       : Text(
-                        isEditing ? 'Сохранить изменения' : 'Добавить адрес',
+                        isEditing ? context.tr('common.save') : context.tr('address.title_add'),
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
@@ -442,7 +444,7 @@ class _AddressFormScreenState extends ConsumerState<AddressFormScreen> {
               
               // Примечание
               Text(
-                '* - обязательные поля',
+                context.tr('address.required_hint'),
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
@@ -451,6 +453,7 @@ class _AddressFormScreenState extends ConsumerState<AddressFormScreen> {
           ),
         ),
       ),
+      extendBody: true,
       bottomNavigationBar: const BottomNavigationBarWidget(selectedIndex: 4),
     );
   }

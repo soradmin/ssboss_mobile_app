@@ -60,6 +60,7 @@ class AuthNotifier extends StateNotifier<User> {
               id: userData['id'] ?? 1,
               name: userData['name'] ?? 'Пользователь',
               email: userData['email'] ?? '',
+              phone: userData['phone']?.toString(),
               isAuthenticated: true,
             );
             print('[DEBUG] AuthProvider: Пользователь авторизован через мобильный токен: ${userData['name']}');
@@ -103,12 +104,13 @@ class AuthNotifier extends StateNotifier<User> {
             final profileResult = await AuthApi.getProfile();
             if (profileResult is Ok<Map<String, dynamic>>) {
               final userData = profileResult.value;
-              state = User(
-                id: userData['id'] ?? 1,
-                name: userData['name'] ?? 'Пользователь',
-                email: userData['email'] ?? '',
-                isAuthenticated: true,
-              );
+            state = User(
+              id: userData['id'] ?? 1,
+              name: userData['name'] ?? 'Пользователь',
+              email: userData['email'] ?? '',
+              phone: userData['phone']?.toString(),
+              isAuthenticated: true,
+            );
               print('[DEBUG] AuthProvider: Пользователь авторизован через общий токен: ${userData['name']}');
               _syncCartOnAuth();
               _syncFcmTokenOnAuth();
@@ -145,6 +147,25 @@ class AuthNotifier extends StateNotifier<User> {
 
   void login(User user) {
     state = user;
+  }
+
+  /// Сохранить токен и сразу считать пользователя вошедшим (без ожидания профиля).
+  Future<void> completeOtpLogin({
+    required String token,
+    Map<String, dynamic>? userPayload,
+  }) async {
+    await AppConfig.saveMobileBearerToken(token);
+    AppConfig.mobileBearer = token;
+    final u = userPayload ?? {};
+    state = User(
+      id: u['id'] is int ? u['id'] as int : int.tryParse('${u['id'] ?? 1}') ?? 1,
+      name: u['name']?.toString() ?? 'Пользователь',
+      email: u['email']?.toString() ?? '',
+      phone: u['phone']?.toString(),
+      isAuthenticated: true,
+    );
+    _syncCartOnAuth();
+    _syncFcmTokenOnAuth();
   }
 
   void logout() {

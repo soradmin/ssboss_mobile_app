@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/widgets/bottom_navigation_bar.dart';
+import '../../../core/l10n/locale_controller.dart';
 import '../../../theme.dart';
 import '../../catalog/models/product.dart';
 import '../../catalog/repo/catalog_api.dart';
@@ -112,7 +113,10 @@ class _CompareScreenState extends ConsumerState<CompareScreen> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    '${product.name} удален из сравнений',
+                    context.tr(
+                      'compare.removed',
+                      namedArgs: {'name': product.name},
+                    ),
                     style: const TextStyle(fontSize: 14),
                   ),
                 ),
@@ -131,7 +135,7 @@ class _CompareScreenState extends ConsumerState<CompareScreen> {
       err: (error) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Ошибка: $error'),
+            content: Text('${context.tr('common.error')}: $error'),
             backgroundColor: Colors.red[600],
             behavior: SnackBarBehavior.floating,
             margin: const EdgeInsets.all(16),
@@ -143,6 +147,7 @@ class _CompareScreenState extends ConsumerState<CompareScreen> {
 
   @override
   Widget build(BuildContext context) {
+    ref.watch(localeControllerProvider);
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
@@ -163,9 +168,9 @@ class _CompareScreenState extends ConsumerState<CompareScreen> {
             ),
           ),
         ),
-        title: const Text(
-          'Сравнения',
-          style: TextStyle(
+        title: Text(
+          context.tr('compare.title'),
+          style: const TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.bold,
             fontSize: 20,
@@ -180,7 +185,7 @@ class _CompareScreenState extends ConsumerState<CompareScreen> {
           IconButton(
             onPressed: _loadCompareProducts,
             icon: const Icon(Icons.refresh_rounded, color: Colors.white),
-            tooltip: 'Обновить',
+            tooltip: context.tr('common.update'),
           ),
         ],
       ),
@@ -193,6 +198,7 @@ class _CompareScreenState extends ConsumerState<CompareScreen> {
                     ? _buildEmptyState()
                     : _buildContent(),
       ),
+      extendBody: true,
       bottomNavigationBar: const BottomNavigationBarWidget(selectedIndex: 1),
     );
   }
@@ -240,14 +246,14 @@ class _CompareScreenState extends ConsumerState<CompareScreen> {
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: Colors.blue.withValues(alpha: 0.2)),
             ),
-            child: const Row(
+            child: Row(
               children: [
-                Icon(Icons.info_outline_rounded, color: Colors.blue, size: 20),
-                SizedBox(width: 10),
+                const Icon(Icons.info_outline_rounded, color: Colors.blue, size: 20),
+                const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    'Добавьте ещё один товар, чтобы сравнить цену, рейтинг и характеристики',
-                    style: TextStyle(fontSize: 13, height: 1.35),
+                    context.tr('compare.need_more'),
+                    style: const TextStyle(fontSize: 13, height: 1.35),
                   ),
                 ),
               ],
@@ -263,7 +269,10 @@ class _CompareScreenState extends ConsumerState<CompareScreen> {
                 setState(() => _products.clear());
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text('${product.name} удален из сравнений'),
+                    content: Text(context.tr(
+                      'compare.removed',
+                      namedArgs: {'name': product.name},
+                    )),
                     backgroundColor: Colors.orange[600],
                     behavior: SnackBarBehavior.floating,
                     margin: const EdgeInsets.all(16),
@@ -278,15 +287,15 @@ class _CompareScreenState extends ConsumerState<CompareScreen> {
   }
 
   Widget _buildLoadingState() {
-    return const Center(
+    return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          CircularProgressIndicator(),
-          SizedBox(height: 16),
+          const CircularProgressIndicator(),
+          const SizedBox(height: 16),
           Text(
-            'Загружаем товары для сравнения...',
-            style: TextStyle(
+            context.tr('compare.loading'),
+            style: const TextStyle(
               fontSize: 16,
               color: Colors.grey,
             ),
@@ -320,7 +329,7 @@ class _CompareScreenState extends ConsumerState<CompareScreen> {
             ),
             const SizedBox(height: 24),
             Text(
-              'Ошибка загрузки',
+              context.tr('catalog.load_error'),
               style: theme.textTheme.headlineSmall?.copyWith(
                 fontWeight: FontWeight.w600,
                 color: isDark ? Colors.white : Colors.grey[800],
@@ -351,7 +360,7 @@ class _CompareScreenState extends ConsumerState<CompareScreen> {
               child: ElevatedButton.icon(
                 onPressed: _loadCompareProducts,
                 icon: const Icon(Icons.refresh_rounded, color: Colors.white),
-                label: const Text('Повторить', style: TextStyle(color: Colors.white)),
+                label: Text(context.tr('common.retry'), style: const TextStyle(color: Colors.white)),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.transparent,
                   shadowColor: Colors.transparent,
@@ -393,7 +402,7 @@ class _CompareScreenState extends ConsumerState<CompareScreen> {
             ),
             const SizedBox(height: 24),
             Text(
-              'У вас пока нет товаров для сравнения',
+              context.tr('compare.empty'),
               style: theme.textTheme.headlineSmall?.copyWith(
                 fontWeight: FontWeight.w600,
                 color: isDark ? Colors.white : Colors.grey[800],
@@ -402,7 +411,7 @@ class _CompareScreenState extends ConsumerState<CompareScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Добавьте товары в сравнение, чтобы они появились здесь!',
+              context.tr('compare.empty_hint'),
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: isDark ? Colors.grey[400] : Colors.grey[600],
               ),
@@ -425,7 +434,7 @@ class _CompareScreenState extends ConsumerState<CompareScreen> {
               child: ElevatedButton.icon(
                 onPressed: () => context.go('/'),
                 icon: const Icon(Icons.search_rounded, color: Colors.white),
-                label: const Text('Найти товары', style: TextStyle(color: Colors.white)),
+                label: Text(context.tr('favorites.find_products'), style: const TextStyle(color: Colors.white)),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.transparent,
                   shadowColor: Colors.transparent,

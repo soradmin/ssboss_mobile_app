@@ -9,13 +9,8 @@ import '../repo/catalog_api.dart';
 import '../providers/content_cache.dart';
 import '../../personalization/user_preference_service.dart';
 import '../../../core/result.dart';
-import '../../cart/controllers/cart_controller.dart';
-
-// Провайдер для количества товаров в корзине
-final cartTotalQuantityProvider = Provider<int>((ref) {
-  final cart = ref.watch(cartProvider);
-  return cart.fold(0, (sum, item) => sum + item.qty);
-});
+import '../../../core/l10n/locale_controller.dart';
+import '../../../core/widgets/bottom_navigation_bar.dart';
 
 class CatalogScreen extends ConsumerStatefulWidget {
   const CatalogScreen({super.key});
@@ -266,6 +261,7 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
 
   @override
   Widget build(BuildContext context) {
+    ref.watch(localeControllerProvider);
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -288,7 +284,10 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
             // Открываем поиск
             showSearch(
               context: context,
-              delegate: _CategorySearchDelegate(_categories),
+              delegate: _CategorySearchDelegate(
+                _categories,
+                searchHint: context.tr('catalog.search_categories'),
+              ),
             );
           },
           child: Container(
@@ -307,7 +306,7 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  'Поиск',
+                  context.tr('common.search'),
                   style: TextStyle(
                     color: Colors.grey[700],
                     fontSize: 16,
@@ -332,121 +331,8 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
         ],
       ),
       body: _buildBody(),
-      bottomNavigationBar: _buildModernBottomNav(),
-    );
-  }
-
-  Widget _buildModernBottomNav() {
-    return Container(
-      margin: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(30),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: [
-            Expanded(child: _buildNavItem(Icons.home, Icons.home, 'Главная', 0, false)),
-            Expanded(child: _buildNavItem(Icons.grid_view_outlined, Icons.grid_view, 'Каталог', 1, true)),
-            Expanded(child: _buildNavItem(Icons.shopping_cart_outlined, Icons.shopping_cart, 'Корзина', 2, false)),
-            Expanded(child: _buildNavItem(Icons.favorite_border, Icons.favorite, 'Избранное', 3, false)),
-            Expanded(child: _buildNavItem(Icons.person_outline, Icons.person, 'Профиль', 4, false)),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildNavItem(IconData icon, IconData selectedIcon, String label, int index, bool isSelected) {
-    return Consumer(
-      builder: (context, ref, child) {
-        // Получаем количество товаров в корзине для иконки корзины
-        final cartQuantity = index == 2 ? ref.watch(cartTotalQuantityProvider) : 0;
-        
-        return GestureDetector(
-          onTap: () {
-            switch (index) {
-              case 0: context.go('/'); break;
-              case 1: context.go('/catalog'); break;
-              case 2: context.go('/cart'); break;
-              case 3: context.go('/favorites'); break;
-              case 4: context.go('/profile'); break;
-            }
-          },
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-            decoration: BoxDecoration(
-              color: isSelected ? const Color(0xFF9C27B0).withOpacity(0.1) : Colors.transparent,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Иконка с бейджем для корзины
-                Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    Icon(
-                      isSelected ? selectedIcon : icon,
-                      color: isSelected ? const Color(0xFF9C27B0) : const Color(0xFF718096),
-                      size: 20,
-                    ),
-                    // Бейдж с количеством товаров (только для корзины)
-                    if (index == 2 && cartQuantity > 0)
-                      Positioned(
-                        right: -6,
-                        top: -6,
-                        child: Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: BoxDecoration(
-                            color: Colors.red,
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: Colors.white, width: 1),
-                          ),
-                          constraints: const BoxConstraints(
-                            minWidth: 16,
-                            minHeight: 16,
-                          ),
-                          child: Text(
-                            cartQuantity > 99 ? '99+' : cartQuantity.toString(),
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 8,
-                              fontWeight: FontWeight.bold,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  label,
-                  style: TextStyle(
-                    color: isSelected ? const Color(0xFF9C27B0) : const Color(0xFF718096),
-                    fontSize: 10,
-                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                ),
-              ],
-            ),
-          ),
-        );
-      },
+      extendBody: true,
+      bottomNavigationBar: const BottomNavigationBarWidget(selectedIndex: 1),
     );
   }
 
@@ -456,7 +342,7 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
         onRefresh: _loadCategories,
         color: const Color(0xFF8813BA),
         child: _CatalogCategoriesSkeleton(
-          bottomInset: MediaQuery.of(context).padding.bottom + 100,
+          bottomInset: BottomNavigationBarWidget.occupiedHeight(context) + 16,
         ),
       );
     }
@@ -490,7 +376,7 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      'Ошибка загрузки категорий',
+                      context.tr('catalog.load_error'),
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
                         color: Colors.black,
                         fontWeight: FontWeight.bold,
@@ -521,7 +407,7 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
                       child: ElevatedButton.icon(
                         onPressed: _loadCategories,
                         icon: const Icon(Icons.refresh, color: Colors.white),
-                        label: const Text('Повторить', style: TextStyle(color: Colors.white)),
+                        label: Text(context.tr('common.retry'), style: const TextStyle(color: Colors.white)),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.transparent,
                           shadowColor: Colors.transparent,
@@ -571,7 +457,7 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      'Категории не найдены',
+                      context.tr('catalog.no_categories'),
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
                         color: Colors.black,
                         fontWeight: FontWeight.bold,
@@ -579,7 +465,7 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Попробуйте обновить страницу',
+                      context.tr('network.refresh'),
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         color: Colors.grey,
                       ),
@@ -604,7 +490,7 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
               left: 16,
               right: 16,
               top: 16,
-              bottom: MediaQuery.of(context).padding.bottom + 100, // Отступ для нижней навигации
+              bottom: BottomNavigationBarWidget.occupiedHeight(context) + 16,
             ),
             sliver: SliverGrid.builder(
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
@@ -617,7 +503,7 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
               itemBuilder: (context, i) {
                 final category = _categories[i];
                 return _CategoryTile(
-                  name: (category['name'] ?? category['title'] ?? 'Категория').toString(),
+                  name: (category['name'] ?? category['title'] ?? context.tr('catalog.category')).toString(),
                   subtitle: category['subtitle']?.toString(),
                   image: category['image']?.toString(),
                   productCount: category['product_count'] as int?,
@@ -835,11 +721,12 @@ class _CategoryTile extends StatelessWidget {
 
 class _CategorySearchDelegate extends SearchDelegate<String> {
   final List<Map<String, dynamic>> categories;
+  final String searchHint;
 
-  _CategorySearchDelegate(this.categories);
+  _CategorySearchDelegate(this.categories, {required this.searchHint});
 
   @override
-  String get searchFieldLabel => 'Поиск категорий';
+  String get searchFieldLabel => searchHint;
 
   @override
   ThemeData appBarTheme(BuildContext context) {
@@ -891,29 +778,21 @@ class _CategorySearchDelegate extends SearchDelegate<String> {
     }).toList();
 
     if (filteredCategories.isEmpty) {
-      return const Center(
+      return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
+            const Icon(
               Icons.search_off,
               size: 64,
               color: Colors.grey,
             ),
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
             Text(
-              'Категории не найдены',
-              style: TextStyle(
+              context.tr('catalog.no_categories'),
+              style: const TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w500,
-                color: Colors.grey,
-              ),
-            ),
-            SizedBox(height: 8),
-            Text(
-              'Попробуйте другой поисковый запрос',
-              style: TextStyle(
-                fontSize: 14,
                 color: Colors.grey,
               ),
             ),
@@ -937,7 +816,7 @@ class _CategorySearchDelegate extends SearchDelegate<String> {
           onTap: () {
             final categoryParam = category['slug']?.toString() ?? 
                 category['name']?.toString().toLowerCase().replaceAll(' ', '-') ?? 'unknown';
-            final categoryTitle = (category['name'] ?? category['title'] ?? 'Категория').toString();
+            final categoryTitle = (category['name'] ?? category['title'] ?? context.tr('catalog.category')).toString();
             final categoryId = category['id'] as int?;
             final queryParams = <String, String>{
               'category': categoryParam,
@@ -997,7 +876,7 @@ class _CategorySearchDelegate extends SearchDelegate<String> {
                     fit: BoxFit.scaleDown,
                     alignment: Alignment.centerLeft,
                     child: Text(
-                      (category['name'] ?? category['title'] ?? 'Категория').toString(),
+                      (category['name'] ?? category['title'] ?? context.tr('catalog.category')).toString(),
                       style: const TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,

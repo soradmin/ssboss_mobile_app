@@ -13,6 +13,10 @@ $app =  Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware) {
         // $middleware->append(\Illuminate\Http\Middleware\HandleCors::class);
+        $middleware->validateCsrfTokens(except: [
+            'user/otp/send',
+            'user/otp/verify',
+        ]);
         $middleware->alias([
             'scope' => \App\Http\Middleware\CheckForAllScopes::class,
             'social' => \App\Http\Middleware\SocialMiddleware::class

@@ -12,6 +12,7 @@ import '../../auth/providers/auth_provider.dart';
 import '../../cart/controllers/cart_controller.dart';
 import '../repo/profile_api.dart';
 import '../../../theme.dart';
+import '../../../core/l10n/locale_controller.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -175,6 +176,7 @@ class _UserProfileViewState extends ConsumerState<_UserProfileView>
           ),
         ],
       ),
+      extendBody: true,
       bottomNavigationBar: const BottomNavigationBarWidget(selectedIndex: 4),
     );
   }
@@ -207,8 +209,11 @@ class _UserProfileViewState extends ConsumerState<_UserProfileView>
   }
 
   Widget _buildModernProfileContent(Map<String, dynamic> profileData) {
-    final name = profileData['name']?.toString() ?? 'Пользователь';
-    final email = profileData['email']?.toString() ?? '';
+    final name = profileData['name']?.toString() ?? context.tr('common.user');
+    final email = AuthApi.displayContact(
+      phone: profileData['phone']?.toString(),
+      email: profileData['email']?.toString(),
+    );
     
     return AnimatedBuilder(
       animation: _animationController,
@@ -311,8 +316,11 @@ class _UserProfileViewState extends ConsumerState<_UserProfileView>
   }
 
   Widget _buildProfileHeader(Map<String, dynamic> profileData) {
-    final name = profileData['name']?.toString() ?? 'Пользователь';
-    final email = profileData['email']?.toString() ?? '';
+    final name = profileData['name']?.toString() ?? context.tr('common.user');
+    final email = AuthApi.displayContact(
+      phone: profileData['phone']?.toString(),
+      email: profileData['email']?.toString(),
+    );
     
     return AnimatedBuilder(
       animation: _animationController,
@@ -382,18 +390,18 @@ class _UserProfileViewState extends ConsumerState<_UserProfileView>
                       width: 1,
                     ),
                   ),
-                  child: const Row(
+                  child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(
+                      const Icon(
                         Icons.star,
                         color: Colors.white,
                         size: 18,
                       ),
-                      SizedBox(width: 6),
+                      const SizedBox(width: 6),
                       Text(
-                        'Премиум',
-                        style: TextStyle(
+                        context.tr('profile.premium'),
+                        style: const TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.w600,
                           fontSize: 14,
@@ -438,11 +446,19 @@ class _UserProfileViewState extends ConsumerState<_UserProfileView>
           borderRadius: BorderRadius.circular(16),
         ),
         child: FilledButton.icon(
-          onPressed: () => context.push('/edit-profile'),
+          onPressed: () {
+            final u = ref.read(authProvider);
+            final email = AuthApi.isPlaceholderEmail(u.email) ? '' : u.email;
+            context.push('/edit-profile', extra: {
+              'name': u.name,
+              'email': email,
+              'phone': u.phone ?? '',
+            });
+          },
           icon: const Icon(Icons.edit_outlined, size: 20),
-          label: const Text(
-            'Редактировать профиль',
-            style: TextStyle(
+          label: Text(
+            context.tr('profile.edit'),
+            style: const TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w600,
             ),
@@ -462,48 +478,51 @@ class _UserProfileViewState extends ConsumerState<_UserProfileView>
   }
 
   Widget _buildProfileSections() {
+    final l10n = ref.watch(localeControllerProvider.notifier);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        _buildLanguageCard(),
+        const SizedBox(height: 12),
         _buildProfileCard(
           icon: Icons.shopping_bag_outlined,
-          title: 'Мои заказы',
-          subtitle: 'История заказов и статусы',
+          title: l10n.tr('profile.my_orders'),
+          subtitle: l10n.tr('profile.my_orders_sub'),
           onTap: () => context.push('/orders'),
         ),
         const SizedBox(height: 12),
         _buildProfileCard(
           icon: Icons.location_on_outlined,
-          title: 'Мои адреса',
-          subtitle: 'Управление адресами доставки',
+          title: l10n.tr('profile.my_addresses'),
+          subtitle: l10n.tr('profile.my_addresses_sub'),
           onTap: () => context.push('/addresses'),
         ),
         const SizedBox(height: 12),
         _buildProfileCard(
           icon: Icons.storefront_outlined,
-          title: 'Любимые магазины',
-          subtitle: 'Подписки на магазины',
+          title: l10n.tr('profile.favorite_stores'),
+          subtitle: l10n.tr('profile.favorite_stores_sub'),
           onTap: () => context.push('/favorite-stores'),
         ),
         const SizedBox(height: 12),
         _buildProfileCard(
           icon: Icons.favorite_border,
-          title: 'Избранные',
-          subtitle: 'Любимые товары',
+          title: l10n.tr('profile.favorites'),
+          subtitle: l10n.tr('profile.favorites_sub'),
           onTap: () => context.push('/favorites'),
         ),
         const SizedBox(height: 12),
         _buildProfileCard(
           icon: Icons.balance_outlined,
-          title: 'Сравнения',
-          subtitle: 'Сравнить товары',
+          title: l10n.tr('profile.compare'),
+          subtitle: l10n.tr('profile.compare_sub'),
           onTap: () => context.push('/compare'),
         ),
         const SizedBox(height: 12),
         _buildProfileCard(
           icon: Icons.store_mall_directory_outlined,
-          title: 'Стать продавцом',
-          subtitle: 'Открыть магазин на SSBOSS',
+          title: l10n.tr('profile.become_seller'),
+          subtitle: l10n.tr('profile.become_seller_sub'),
           onTap: () async {
             final url = Uri.parse('https://ssboss.shop/seller/sign-up');
             if (await canLaunchUrl(url)) {
@@ -512,6 +531,105 @@ class _UserProfileViewState extends ConsumerState<_UserProfileView>
           },
         ),
       ],
+    );
+  }
+
+  Widget _buildLanguageCard() {
+    final locale = ref.watch(localeControllerProvider);
+    final l10n = ref.read(localeControllerProvider.notifier);
+
+    return Card(
+      elevation: 2,
+      shadowColor: Colors.black.withOpacity(0.1),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF9C27B0).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    Icons.language_rounded,
+                    color: Color(0xFF9C27B0),
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        l10n.tr('language.title'),
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF1A1A1A),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        l10n.tr('language.subtitle'),
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(
+                  child: _LanguageChip(
+                    label: l10n.tr('language.russian'),
+                    selected: locale.code == AppLocale.ru,
+                    onTap: () async {
+                      await l10n.setLocale(AppLocale.ru);
+                      if (!mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(context.tr('language.changed')),
+                          duration: const Duration(seconds: 1),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _LanguageChip(
+                    label: l10n.tr('language.tajik'),
+                    selected: locale.code == AppLocale.tg,
+                    onTap: () async {
+                      await l10n.setLocale(AppLocale.tg);
+                      if (!mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(context.tr('language.changed')),
+                          duration: const Duration(seconds: 1),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -583,6 +701,7 @@ class _UserProfileViewState extends ConsumerState<_UserProfileView>
   }
 
   Widget _buildSecuritySection() {
+    final l10n = ref.watch(localeControllerProvider.notifier);
     return Card(
       elevation: 2,
       shadowColor: Colors.black.withOpacity(0.1),
@@ -594,9 +713,9 @@ class _UserProfileViewState extends ConsumerState<_UserProfileView>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text(
-              'Безопасность и аккаунт',
-              style: TextStyle(
+            Text(
+              l10n.tr('profile.security'),
+              style: const TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w600,
                 color: Colors.black87,
@@ -605,24 +724,24 @@ class _UserProfileViewState extends ConsumerState<_UserProfileView>
             const SizedBox(height: 16),
             _buildSecurityCard(
               icon: Icons.logout,
-              title: 'Выйти из приложения',
-              subtitle: 'Завершить сеанс только в приложении',
+              title: l10n.tr('profile.logout_app'),
+              subtitle: l10n.tr('profile.logout_app_sub'),
               color: Colors.orange,
               onTap: _mobileLogout,
             ),
             const SizedBox(height: 12),
             _buildSecurityCard(
               icon: Icons.logout_outlined,
-              title: 'Выйти везде',
-              subtitle: 'Завершить сеанс на сайте и в приложении',
+              title: l10n.tr('profile.logout_everywhere'),
+              subtitle: l10n.tr('profile.logout_everywhere_sub'),
               color: Colors.red,
               onTap: _fullLogout,
             ),
             const SizedBox(height: 12),
             _buildSecurityCard(
               icon: Icons.delete_forever,
-              title: 'Удалить аккаунт',
-              subtitle: 'Безвозвратное удаление',
+              title: l10n.tr('profile.delete_account'),
+              subtitle: l10n.tr('profile.delete_account_sub'),
               color: Colors.red,
               onTap: _deleteAccount,
             ),
@@ -696,7 +815,7 @@ class _UserProfileViewState extends ConsumerState<_UserProfileView>
   Widget _buildAppVersion() {
     return Center(
       child: Text(
-        'Версия приложения 1.0.0',
+        context.tr('common.version', namedArgs: {'version': '1.0.6'}),
         style: TextStyle(
           fontSize: 12,
           color: Colors.grey[500],
@@ -712,16 +831,16 @@ class _UserProfileViewState extends ConsumerState<_UserProfileView>
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
-          title: const Text('Выйти из приложения'),
-          content: const Text('Вы уверены, что хотите выйти из приложения? Вы останетесь авторизованными на сайте.'),
+          title: Text(context.tr('profile.logout_app')),
+          content: Text(context.tr('profile.logout_app_confirm')),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Отмена'),
+              child: Text(context.tr('common.cancel')),
             ),
             TextButton(
               onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('Выйти'),
+              child: Text(context.tr('profile.logout_btn')),
             ),
           ],
         ),
@@ -732,8 +851,8 @@ class _UserProfileViewState extends ConsumerState<_UserProfileView>
         
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Вы вышли из приложения'),
+            SnackBar(
+              content: Text(context.tr('profile.logged_out_app')),
               backgroundColor: Colors.orange,
             ),
           );
@@ -743,7 +862,7 @@ class _UserProfileViewState extends ConsumerState<_UserProfileView>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Ошибка выхода: $e'),
+            content: Text('${context.tr('common.error')}: $e'),
             backgroundColor: Colors.red,
           ),
         );
@@ -758,16 +877,16 @@ class _UserProfileViewState extends ConsumerState<_UserProfileView>
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
-          title: const Text('Выйти везде'),
-          content: const Text('Вы уверены, что хотите выйти из всех устройств? Это завершит сеанс на сайте и в приложении.'),
+          title: Text(context.tr('profile.logout_everywhere')),
+          content: Text(context.tr('profile.logout_everywhere_confirm')),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Отмена'),
+              child: Text(context.tr('common.cancel')),
             ),
             TextButton(
               onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('Выйти везде'),
+              child: Text(context.tr('profile.logout_everywhere')),
             ),
           ],
         ),
@@ -784,8 +903,8 @@ class _UserProfileViewState extends ConsumerState<_UserProfileView>
         
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Вы вышли из всех устройств'),
+            SnackBar(
+              content: Text(context.tr('profile.logged_out_everywhere')),
               backgroundColor: Colors.red,
             ),
           );
@@ -795,7 +914,7 @@ class _UserProfileViewState extends ConsumerState<_UserProfileView>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Ошибка выхода: $e'),
+            content: Text('${context.tr('common.error')}: $e'),
             backgroundColor: Colors.red,
           ),
         );
@@ -845,9 +964,9 @@ class _UserProfileViewState extends ConsumerState<_UserProfileView>
             const SizedBox(height: 16),
             
             // Заголовок
-            const Text(
-              'Удалить аккаунт?',
-              style: TextStyle(
+            Text(
+              context.tr('profile.delete_account_title'),
+              style: const TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
                 color: Colors.black87,
@@ -857,7 +976,7 @@ class _UserProfileViewState extends ConsumerState<_UserProfileView>
             
             // Описание
             Text(
-              'Это действие нельзя отменить. Все ваши данные будут удалены навсегда.',
+              context.tr('profile.delete_account_confirm'),
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 14,
@@ -878,7 +997,7 @@ class _UserProfileViewState extends ConsumerState<_UserProfileView>
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                    child: const Text('Отмена'),
+                    child: Text(context.tr('common.cancel')),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -907,7 +1026,7 @@ class _UserProfileViewState extends ConsumerState<_UserProfileView>
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
-                      child: const Text('Удалить'),
+                      child: Text(context.tr('common.delete')),
                     ),
                   ),
                 ),
@@ -946,9 +1065,9 @@ class _UserProfileViewState extends ConsumerState<_UserProfileView>
         if (mounted) {
           // Показываем сообщение об успехе
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Аккаунт успешно удален'),
-              duration: Duration(seconds: 2),
+            SnackBar(
+              content: Text(context.tr('profile.account_deleted')),
+              duration: const Duration(seconds: 2),
             ),
           );
           
@@ -981,5 +1100,41 @@ class _UserProfileViewState extends ConsumerState<_UserProfileView>
         );
       }
     }
+  }
+}
+
+class _LanguageChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _LanguageChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: selected ? const Color(0xFF9C27B0) : const Color(0xFFF3E8FF),
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              fontSize: 14,
+              color: selected ? Colors.white : const Color(0xFF7B1FA2),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }

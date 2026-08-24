@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../../theme.dart';
 import '../../../core/date_formatter.dart';
+import '../../../core/l10n/locale_controller.dart';
 import '../../../core/widgets/bottom_navigation_bar.dart';
 import '../models/order.dart';
 import '../repo/order_api.dart';
@@ -84,16 +85,16 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Отменить заказ'),
-        content: const Text('Вы уверены, что хотите отменить этот заказ?'),
+        title: Text(context.tr('orders.cancel_order')),
+        content: Text(context.tr('orders.cancel_order') + '?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Нет'),
+            child: Text(context.tr('orders.cancel_no')),
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Да, отменить'),
+            child: Text(context.tr('orders.cancel_yes')),
           ),
         ],
       ),
@@ -112,8 +113,8 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
           });
           if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Заказ отменен'),
+            SnackBar(
+              content: Text(context.tr('orders.order_cancelled')),
               backgroundColor: Colors.green,
             ),
           );
@@ -122,7 +123,7 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
         err: (error) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Ошибка отмены заказа: $error'),
+              content: Text('${context.tr('common.error')}: $error'),
               backgroundColor: Colors.red,
             ),
           );
@@ -147,19 +148,19 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Повторить заказ'),
+        title: Text(context.tr('orders.reorder')),
         content: Text(
-          'Товары из заказа будут добавлены в корзину.\n'
-          'Осталось попыток: $_remainingActions из ${OrderActionLimitService.maxActionsPerOrder}',
+          '${context.tr('orders.reorder')}\n'
+          '$_remainingActions / ${OrderActionLimitService.maxActionsPerOrder}',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Отмена'),
+            child: Text(context.tr('common.cancel')),
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('В корзину'),
+            child: Text(context.tr('orders.to_cart')),
           ),
         ],
       ),
@@ -183,7 +184,7 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('В корзину добавлено товаров: $addedCount'),
+            content: Text(context.tr('orders.added_to_cart', namedArgs: {'count': '$addedCount'})),
             backgroundColor: Colors.green,
           ),
         );
@@ -208,6 +209,7 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    ref.watch(localeControllerProvider);
     if (_isLoading) {
       return Scaffold(
         appBar: AppBar(
@@ -225,9 +227,9 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
               ),
             ),
           ),
-          title: const Text(
-            'Детали заказа',
-            style: TextStyle(
+          title: Text(
+            context.tr('orders.details'),
+            style: const TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.bold,
             ),
@@ -238,7 +240,8 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
           ),
         ),
         body: const Center(child: CircularProgressIndicator()),
-        bottomNavigationBar: const BottomNavigationBarWidget(selectedIndex: 4),
+        extendBody: true,
+      bottomNavigationBar: const BottomNavigationBarWidget(selectedIndex: 4),
       );
     }
 
@@ -259,9 +262,9 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
               ),
             ),
           ),
-          title: const Text(
-            'Детали заказа',
-            style: TextStyle(
+          title: Text(
+            context.tr('orders.details'),
+            style: const TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.bold,
             ),
@@ -278,7 +281,7 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
               Icon(Icons.error_outline, size: 64, color: Colors.red[300]),
               const SizedBox(height: 16),
               Text(
-                'Ошибка загрузки заказа',
+                context.tr('catalog.load_error'),
                 style: Theme.of(context).textTheme.headlineSmall,
               ),
               const SizedBox(height: 8),
@@ -312,13 +315,14 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  child: const Text('Повторить'),
+                  child: Text(context.tr('common.retry')),
                 ),
               ),
             ],
           ),
         ),
-        bottomNavigationBar: const BottomNavigationBarWidget(selectedIndex: 4),
+        extendBody: true,
+      bottomNavigationBar: const BottomNavigationBarWidget(selectedIndex: 4),
       );
     }
 
@@ -339,9 +343,9 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
               ),
             ),
           ),
-          title: const Text(
-            'Детали заказа',
-            style: TextStyle(
+          title: Text(
+            context.tr('orders.details'),
+            style: const TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.bold,
             ),
@@ -351,8 +355,8 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
             onPressed: () => Navigator.of(context).maybePop(),
           ),
         ),
-        body: const Center(
-          child: Text('Заказ не найден'),
+        body: Center(
+          child: Text(context.tr('orders.not_found')),
         ),
       );
     }
@@ -373,9 +377,9 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
             ),
           ),
         ),
-        title: const Text(
-          'Детали заказа',
-          style: TextStyle(
+        title: Text(
+          context.tr('orders.details'),
+          style: const TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.bold,
           ),
@@ -429,6 +433,7 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
           ],
         ),
       ),
+      extendBody: true,
       bottomNavigationBar: const BottomNavigationBarWidget(selectedIndex: 4),
     );
   }
@@ -478,7 +483,7 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Заказ',
+                        context.tr('orders.order'),
                         style: TextStyle(
                           color: Colors.white.withOpacity(0.9),
                           fontSize: 14,
@@ -509,7 +514,7 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
                 const SizedBox(width: 20),
                 _buildHeaderInfo(
                   Icons.account_balance_wallet,
-                  '${_order!.totalAmount.toStringAsFixed(2)} с.',
+                  '${_order!.totalAmount.toStringAsFixed(2)} ${context.tr('common.currency')}',
                 ),
               ],
             ),
@@ -596,7 +601,7 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Статус заказа',
+                        context.tr('orders.status'),
                         style: TextStyle(
                           fontSize: 12,
                           color: Colors.grey[600],
@@ -638,9 +643,9 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
                       ),
                       const SizedBox(width: 8),
                       Text(
-                        'Посмотреть этапы',
-                        style: TextStyle(
-                          color: const Color(0xFF9C27B0),
+                        context.tr('orders.view_steps'),
+                        style: const TextStyle(
+                          color: Color(0xFF9C27B0),
                           fontWeight: FontWeight.w600,
                           fontSize: 14,
                         ),
@@ -671,7 +676,7 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
           const SizedBox(width: 12),
           Expanded(
             child: Text(
-              'Этот заказ был отменен',
+              context.tr('orders.cancelled_note'),
               style: TextStyle(
                 color: Colors.red[800],
                 fontWeight: FontWeight.w600,
@@ -707,11 +712,11 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
 
   void _showStatusTimeline() {
     final statuses = [
-      {'key': 'pending', 'name': 'В ожидании', 'icon': Icons.access_time},
-      {'key': 'confirmed', 'name': 'Подтверждено', 'icon': Icons.check_circle},
-      {'key': 'picked_up', 'name': 'В работе', 'icon': Icons.work},
-      {'key': 'on_the_way', 'name': 'В пути', 'icon': Icons.local_shipping},
-      {'key': 'delivered', 'name': 'Доставлено', 'icon': Icons.done_all},
+      {'key': 'pending', 'name': context.tr('orders.pending'), 'icon': Icons.access_time},
+      {'key': 'confirmed', 'name': context.tr('orders.confirmed'), 'icon': Icons.check_circle},
+      {'key': 'picked_up', 'name': context.tr('orders.processing'), 'icon': Icons.work},
+      {'key': 'on_the_way', 'name': context.tr('orders.shipped'), 'icon': Icons.local_shipping},
+      {'key': 'delivered', 'name': context.tr('orders.delivered'), 'icon': Icons.done_all},
     ];
     
     final currentStatus = _order!.status.toLowerCase();
@@ -741,7 +746,7 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
             Padding(
               padding: const EdgeInsets.all(16.0),
               child: Text(
-                'Этапы заказа',
+                context.tr('orders.steps'),
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                   fontWeight: FontWeight.bold,
                 ),
@@ -797,7 +802,7 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
                               ),
                               if (isCurrent)
                                 Text(
-                                  'Текущий этап',
+                                  context.tr('orders.current_step'),
                                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                                     color: primaryColor,
                                   ),
@@ -846,9 +851,9 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
                         borderRadius: BorderRadius.circular(8),
                       ),
                     ),
-                    child: const Text(
-                      'Закрыть',
-                      style: TextStyle(
+                    child: Text(
+                      context.tr('common.close'),
+                      style: const TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.bold,
                       ),
@@ -896,9 +901,9 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
                 ),
               ),
               const SizedBox(width: 12),
-              const Text(
-                'Информация о заказе',
-                style: TextStyle(
+              Text(
+                context.tr('orders.info'),
+                style: const TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
                   color: Color(0xFF1A1A1A),
@@ -913,7 +918,7 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
           icon: Icons.local_shipping_rounded,
           iconColor: const Color(0xFF2196F3),
           iconBackground: const Color(0xFF2196F3).withOpacity(0.1),
-          label: 'Статус доставки',
+          label: context.tr('orders.delivery_status'),
           value: _order!.displayDeliveryStatus,
           valueColor: _getStatusColor(_order!.effectiveStatus),
         ),
@@ -922,7 +927,7 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
           icon: Icons.payment_rounded,
           iconColor: const Color(0xFF4CAF50),
           iconBackground: const Color(0xFF4CAF50).withOpacity(0.1),
-          label: 'Метод оплаты',
+          label: context.tr('orders.payment_method'),
           value: _order!.displayPaymentMethod,
           valueColor: const Color(0xFF1A1A1A),
         ),
@@ -931,7 +936,7 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
           icon: Icons.credit_card_rounded,
           iconColor: const Color(0xFFFF9800),
           iconBackground: const Color(0xFFFF9800).withOpacity(0.1),
-          label: 'Статус оплаты',
+          label: context.tr('orders.payment_status'),
           value: _order!.displayPaymentStatus,
           valueColor: _getPaymentStatusColor(_order!.displayPaymentStatus),
         ),
@@ -941,7 +946,7 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
             icon: Icons.note_rounded,
             iconColor: const Color(0xFF9C27B0),
             iconBackground: const Color(0xFF9C27B0).withOpacity(0.1),
-            label: 'Примечания',
+            label: context.tr('orders.notes'),
             value: _order!.notes!,
             valueColor: const Color(0xFF1A1A1A),
             isMultiline: true,
@@ -1118,9 +1123,9 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
                   ),
                 ),
                 const SizedBox(width: 12),
-                const Text(
-                  'Адрес доставки',
-                  style: TextStyle(
+                Text(
+                  context.tr('orders.delivery_address'),
+                  style: const TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
                     color: Color(0xFF1A1A1A),
@@ -1235,9 +1240,9 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
                   ),
                 ),
                 const SizedBox(width: 12),
-                const Text(
-                  'Товары в заказе',
-                  style: TextStyle(
+                Text(
+                  context.tr('orders.items_in_order'),
+                  style: const TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
                     color: Color(0xFF1A1A1A),
@@ -1291,7 +1296,7 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text('Не удалось загрузить товар: $error'),
+                    content: Text('${context.tr('common.error')}: $error'),
                     backgroundColor: Colors.red,
                     duration: const Duration(seconds: 2),
                   ),
@@ -1376,7 +1381,7 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
-                        'Размер: ${item.size}',
+                        '${context.tr('orders.size')} ${item.size}',
                         style: TextStyle(
                           fontSize: 12,
                           color: Colors.grey[700],
@@ -1405,7 +1410,7 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
                         ),
                       ),
                       Text(
-                        '${item.total.toStringAsFixed(2)} с.',
+                        '${item.total.toStringAsFixed(2)} ${context.tr('common.currency')}',
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
@@ -1459,7 +1464,7 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Итого',
+                  context.tr('orders.total'),
                   style: TextStyle(
                     color: Colors.white.withOpacity(0.9),
                     fontSize: 16,
@@ -1468,7 +1473,7 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  '${_order!.totalAmount.toStringAsFixed(2)} с.',
+                  '${_order!.totalAmount.toStringAsFixed(2)} ${context.tr('common.currency')}',
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 32,
@@ -1521,9 +1526,9 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
               borderRadius: BorderRadius.circular(12),
             ),
           ),
-          child: const Text(
-            'Отменить заказ',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          child: Text(
+            context.tr('orders.cancel_order'),
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
           ),
         ),
       ),
@@ -1566,9 +1571,9 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
                         color: Colors.white,
                       ),
                     )
-                  : const Text(
-                      'Повторить заказ',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  : Text(
+                      context.tr('orders.reorder'),
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                     ),
             ),
           ),

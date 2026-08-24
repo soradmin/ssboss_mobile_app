@@ -766,7 +766,61 @@ class CatalogApi {
         return '$base/uploads$path';
       }
 
-      final p = Product.fromJson(obj);
+      var p = Product.fromJson(obj);
+
+      // language-header затирает title/description/store.name в null, если нет перевода.
+      var attributes = p.attributes;
+      final titlesMissing = attributes.any(
+        (a) =>
+            a.title.trim().isEmpty ||
+            a.values.any((v) => v.title.trim().isEmpty),
+      );
+      final needBareContent = titlesMissing ||
+          p.name.trim().isEmpty ||
+          p.description == null ||
+          p.description!.trim().isEmpty ||
+          p.sellerName == null ||
+          p.sellerName!.trim().isEmpty;
+      if (needBareContent) {
+        try {
+          final bare = await dio.get(
+            '/product/$id',
+            queryParameters: {'id': id, 'user_id': ''},
+            options: Options(headers: {'language': ''}),
+          );
+          Map<String, dynamic>? bareObj;
+          final bareData = bare.data;
+          if (bareData is Map && bareData['data'] is Map) {
+            bareObj = (bareData['data'] as Map).cast<String, dynamic>();
+          } else if (bareData is Map) {
+            bareObj = bareData.cast<String, dynamic>();
+          }
+          if (bareObj != null) {
+            final bareProduct = Product.fromJson(bareObj);
+            attributes = _mergeAttributeTitles(attributes, bareProduct.attributes);
+            p = p.copyWith(
+              name: p.name.trim().isNotEmpty ? p.name : bareProduct.name,
+              description: (p.description != null &&
+                      p.description!.trim().isNotEmpty)
+                  ? p.description
+                  : bareProduct.description,
+              descriptionImages: p.descriptionImages.isNotEmpty
+                  ? p.descriptionImages
+                  : bareProduct.descriptionImages,
+              sellerName: (p.sellerName != null && p.sellerName!.trim().isNotEmpty)
+                  ? p.sellerName
+                  : bareProduct.sellerName,
+              sellerRating: p.sellerRating ?? bareProduct.sellerRating,
+              storeSlug: (p.storeSlug != null && p.storeSlug!.trim().isNotEmpty)
+                  ? p.storeSlug
+                  : bareProduct.storeSlug,
+              sellerLogo: p.sellerLogo ?? bareProduct.sellerLogo,
+            );
+          }
+        } catch (_) {
+          // оставляем как есть
+        }
+      }
 
       // Галерея: приоритет product_image_names/product_images (с attributes для вариантов)
       List<ProductImage> normalizedImages = [];
@@ -846,11 +900,12 @@ class CatalogApi {
         sellerName: p.sellerName,
         sellerRating: p.sellerRating,
         storeSlug: p.storeSlug,
+        sellerLogo: p.sellerLogo,
         description: p.description,
         descriptionImages: p.descriptionImages,
         images: normalizedImages,
         videos: normalizedVideos,
-        attributes: p.attributes, // preserve attributes from API
+        attributes: attributes.isNotEmpty ? attributes : p.attributes,
       );
 
       return Ok(full);
@@ -859,6 +914,36 @@ class CatalogApi {
     } catch (e) {
       return Err(e.toString());
     }
+  }
+
+  /// Подставляет title атрибутов/значений из ответа без language, если они пустые.
+  static List<ProductAttribute> _mergeAttributeTitles(
+    List<ProductAttribute> primary,
+    List<ProductAttribute> fallback,
+  ) {
+    if (fallback.isEmpty) return primary;
+    final byId = {for (final a in fallback) a.id: a};
+    return primary.map((attr) {
+      final fb = byId[attr.id];
+      if (fb == null) return attr;
+      final fbValues = {
+        for (final v in fb.values) v.attributeValueId: v,
+      };
+      return ProductAttribute(
+        id: attr.id,
+        title: attr.title.trim().isNotEmpty ? attr.title : fb.title,
+        values: attr.values.map((v) {
+          final fv = fbValues[v.attributeValueId];
+          return ProductAttributeValue(
+            id: v.id,
+            attributeValueId: v.attributeValueId,
+            title: v.title.trim().isNotEmpty
+                ? v.title
+                : (fv?.title ?? ''),
+          );
+        }).toList(),
+      );
+    }).toList();
   }
 
   /// Fallback: если JSON-эндпоинта деталей нет, парсим HTML страницы товара
@@ -1768,6 +1853,8 @@ class CatalogApi {
               } else {
                 print('[WARNING] CatalogApi.getProductReviews: Найдены отзывы в ${endpoint['url']}, но не удалось распарсить ни одного');
               }
+            } else if ((endpoint['url'] as String).toString().contains('reviews')) {
+              return const Ok([]);
             } else {
               print('[DEBUG] CatalogApi.getProductReviews: Отзывы не найдены в ответе от ${endpoint['url']}');
             }
@@ -1854,13 +1941,7 @@ class CatalogApi {
                     if (allMap['data'] is List) {
                       final list = allMap['data'] as List;
                       print('[DEBUG] CatalogApi.getProductReviews: Найден data в $path.data.all, количество: ${list.length}');
-                      if (list.isNotEmpty) {
-                        print('[DEBUG] CatalogApi.getProductReviews: Первый элемент списка: ${list.first}');
-                        print('[DEBUG] CatalogApi.getProductReviews: Найдены отзывы в $path.data.all.data: ${list.length}');
-                        return list;
-                      } else {
-                        print('[DEBUG] CatalogApi.getProductReviews: Список data.all.data пуст');
-                      }
+                      return list;
                     } else {
                       print('[DEBUG] CatalogApi.getProductReviews: data.all.data не является List, тип: ${allMap['data']?.runtimeType}');
                     }
@@ -1974,9 +2055,8 @@ class CatalogApi {
       
       // Если ни один эндпоинт не сработал, возвращаем ошибку
       print('[DEBUG] ========== CatalogApi.getProductReviews: КОНЕЦ (не найдено) ==========');
-      print('[DEBUG] CatalogApi.getProductReviews: Отзывы не найдены ни в одном endpoint');
-      print('[DEBUG] CatalogApi.getProductReviews: Проверьте в Network tab браузера, какой endpoint используется на сайте для получения отзывов');
-      return Err('Отзывы не найдены. Проверьте, какой endpoint используется на сайте для получения отзывов товара $productId');
+      print('[DEBUG] CatalogApi.getProductReviews: Отзывы не найдены — показываем пустой список');
+      return const Ok([]);
     } catch (e, stackTrace) {
       print('[DEBUG] ========== CatalogApi.getProductReviews: ОШИБКА ==========');
       print('[DEBUG] CatalogApi.getProductReviews: Общая ошибка: $e');
@@ -2003,8 +2083,15 @@ class CatalogApi {
         try {
           print('[DEBUG] Пробуем эндпоинт: $endpoint');
           final response = endpoint == '/product/$id' 
-            ? await dio.get(endpoint, queryParameters: {'id': id, 'user_id': ''})
-            : await dio.get(endpoint);
+            ? await dio.get(
+                endpoint,
+                queryParameters: {'id': id, 'user_id': ''},
+                options: Options(headers: {'language': ''}),
+              )
+            : await dio.get(
+                endpoint,
+                options: Options(headers: {'language': ''}),
+              );
           
           if (response.statusCode == 200) {
             final data = response.data;
@@ -2026,41 +2113,22 @@ class CatalogApi {
               if (obj != null) {
                 print('[DEBUG] Обрабатываем данные товара: ${obj.keys}');
                 
-                // Ищем описание в различных полях
-                for (final key in ['description', 'content', 'details', 'product_description', 'long_description', 'summary', 'about', 'text', 'body']) {
-                  if (obj[key] != null && obj[key].toString().trim().isNotEmpty) {
-                    final rawDescription = obj[key].toString().trim();
-                    print('[DEBUG] Найдено описание в поле $key: ${rawDescription.substring(0, rawDescription.length > 200 ? 200 : rawDescription.length)}...');
-                    print('[DEBUG] Полное сырое описание: $rawDescription');
-                    
-                    // Извлекаем изображения из HTML
-                    final imageUrls = <String>[];
-                    final imgRegex = RegExp('<img[^>]+src=["\']([^"\']+)["\'][^>]*>', caseSensitive: false);
-                    final matches = imgRegex.allMatches(rawDescription);
-                    
-                    for (final match in matches) {
-                      final imageUrl = match.group(1);
-                      if (imageUrl != null && imageUrl.isNotEmpty) {
-                        // Преобразуем относительные URL в абсолютные
-                        final fullUrl = imageUrl.startsWith('http') 
-                            ? imageUrl 
-                            : 'https://ssboss.shop${imageUrl.startsWith('/') ? '' : '/'}$imageUrl';
-                        imageUrls.add(fullUrl);
-                        print('[DEBUG] Найдено изображение в описании: $fullUrl');
-                      }
-                    }
-                    
-                    // Очищаем HTML теги для текста
-                    final cleanDescription = rawDescription
-                        .replaceAll(RegExp(r'<[^>]*>'), ' ') // Убираем все HTML теги
-                        .replaceAll(RegExp(r'\s+'), ' ') // Заменяем множественные пробелы на одинарные
-                        .trim(); // Убираем пробелы в начале и конце
-                    
-                    print('[DEBUG] Очищенное описание: ${cleanDescription.substring(0, cleanDescription.length > 200 ? 200 : cleanDescription.length)}...');
-                    print('[DEBUG] Найдено изображений в описании: ${imageUrls.length}');
-                    
-                    // Возвращаем структуру с описанием и изображениями
-                    return Ok({'description': cleanDescription, 'images': imageUrls});
+                // Ищем описание в различных полях (включая overview с бэкенда)
+                for (final key in ['description', 'overview', 'content', 'details', 'product_description', 'long_description', 'summary', 'about', 'text', 'body']) {
+                  final extracted = extractLocalizedText(obj[key]);
+                  if (extracted != null && extracted.isNotEmpty) {
+                    print('[DEBUG] Найдено описание в поле $key');
+                    final imageUrls = extractHtmlImageUrls(extracted);
+                    final cleanDescription = extracted
+                        .replaceAll(RegExp(r'<[^>]*>'), ' ')
+                        .replaceAll(RegExp(r'&nbsp;'), ' ')
+                        .replaceAll(RegExp(r'\s+'), ' ')
+                        .trim();
+                    if (cleanDescription.isEmpty && imageUrls.isEmpty) continue;
+                    return Ok({
+                      'description': cleanDescription.isNotEmpty ? extracted : '',
+                      'images': imageUrls,
+                    });
                   }
                 }
               }

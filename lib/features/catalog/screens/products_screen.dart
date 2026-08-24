@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/widgets/bottom_navigation_bar.dart';
+import '../../../core/l10n/locale_controller.dart';
 import '../repo/catalog_api.dart';
 import '../models/product.dart';
 import '../../../core/result.dart';
@@ -116,6 +117,7 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    ref.watch(localeControllerProvider);
     return Scaffold(
       appBar: AppBar(
         elevation: 0,
@@ -134,11 +136,11 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
         ),
         title: Text(
           (widget.searchQuery != null && widget.searchQuery!.trim().isNotEmpty)
-              ? 'Поиск'
+              ? context.tr('common.search')
               : (widget.brandTitle ??
                   widget.categoryTitle ??
                   widget.category ??
-                  'Товары'),
+                  context.tr('catalog.products')),
           style: const TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.bold,
@@ -156,6 +158,7 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
         ],
       ),
       body: _buildBody(),
+      extendBody: true,
       bottomNavigationBar: const BottomNavigationBarWidget(selectedIndex: 1),
     );
   }
@@ -190,7 +193,7 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
           children: [
             Icon(Icons.error_outline, size: 64, color: Colors.grey[400]),
             const SizedBox(height: 16),
-            Text('Ошибка загрузки товаров', style: Theme.of(context).textTheme.titleMedium),
+            Text(context.tr('catalog.load_error'), style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
             Text(_error!, style: Theme.of(context).textTheme.bodyMedium),
             const SizedBox(height: 16),
@@ -218,7 +221,7 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-                child: const Text('Повторить'),
+                child: Text(context.tr('common.retry')),
               ),
             ),
           ],
@@ -227,13 +230,13 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
     }
 
     if (_products.isEmpty) {
-      return const Center(
+      return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.shopping_bag_outlined, size: 64, color: Colors.grey),
-            SizedBox(height: 16),
-            Text('Товары не найдены'),
+            const Icon(Icons.shopping_bag_outlined, size: 64, color: Colors.grey),
+            const SizedBox(height: 16),
+            Text(context.tr('home.no_products')),
           ],
         ),
       );
@@ -290,7 +293,7 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
-                      child: const Text('Загрузить еще'),
+                      child: Text(context.tr('catalog.load_more')),
                     ),
                   ),
                 ),
@@ -301,4 +304,3 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
     );
   }
 }
-

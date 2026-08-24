@@ -3,11 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../theme.dart';
 import '../../../core/widgets/bottom_navigation_bar.dart';
+import '../../../core/l10n/locale_controller.dart';
 import '../../catalog/models/product.dart';
 import '../../catalog/widgets/product_grid_card.dart';
 import '../repo/favorites_api.dart';
 import '../../auth/providers/auth_provider.dart';
-import '../../auth/models/user.dart';
 
 class FavoritesScreen extends ConsumerStatefulWidget {
   const FavoritesScreen({super.key});
@@ -78,9 +78,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final user = ref.watch(authProvider);
+    ref.watch(localeControllerProvider);
     
     // Автоматически обновляем список, если пользователь авторизовался
     ref.listen(authProvider, (previous, next) {
@@ -107,9 +105,9 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
             ),
           ),
         ),
-        title: const Text(
-          'Избранные',
-          style: TextStyle(
+        title: Text(
+          context.tr('favorites.title'),
+          style: const TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.bold,
             fontSize: 20,
@@ -124,7 +122,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
           IconButton(
             onPressed: _loadFavoriteProducts,
             icon: const Icon(Icons.refresh_rounded, color: Colors.white),
-            tooltip: 'Обновить',
+            tooltip: context.tr('common.update'),
           ),
         ],
       ),
@@ -139,20 +137,21 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                         ? _buildEmptyState()
                         : _buildProductsGrid(),
       ),
+      extendBody: true,
       bottomNavigationBar: const BottomNavigationBarWidget(selectedIndex: 3),
     );
   }
 
   Widget _buildLoadingState() {
-    return const Center(
+    return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          CircularProgressIndicator(),
-          SizedBox(height: 16),
+          const CircularProgressIndicator(),
+          const SizedBox(height: 16),
           Text(
-            'Загружаем избранные товары...',
-            style: TextStyle(
+            context.tr('favorites.loading'),
+            style: const TextStyle(
               fontSize: 16,
               color: Colors.grey,
             ),
@@ -186,7 +185,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
             ),
             const SizedBox(height: 24),
             Text(
-              'Ошибка загрузки',
+              context.tr('catalog.load_error'),
               style: theme.textTheme.headlineSmall?.copyWith(
                 fontWeight: FontWeight.w600,
                 color: isDark ? Colors.white : Colors.grey[800],
@@ -217,7 +216,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
               child: ElevatedButton.icon(
                 onPressed: _loadFavoriteProducts,
                 icon: const Icon(Icons.refresh_rounded),
-                label: const Text('Повторить'),
+                label: Text(context.tr('common.retry')),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.transparent,
                   shadowColor: Colors.transparent,
@@ -259,7 +258,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
             ),
             const SizedBox(height: 24),
             Text(
-              'Требуется авторизация',
+              context.tr('favorites.need_auth'),
               style: theme.textTheme.headlineSmall?.copyWith(
                 fontWeight: FontWeight.w600,
                 color: isDark ? Colors.white : Colors.grey[800],
@@ -268,7 +267,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Войдите в аккаунт, чтобы увидеть добавленные товары в избранное',
+              context.tr('favorites.need_auth_hint'),
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: isDark ? Colors.grey[400] : Colors.grey[600],
               ),
@@ -291,7 +290,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
               child: ElevatedButton.icon(
                 onPressed: () => context.push('/login'),
                 icon: const Icon(Icons.login_rounded),
-                label: const Text('Войти'),
+                label: Text(context.tr('auth.sign_in')),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.transparent,
                   shadowColor: Colors.transparent,
@@ -333,7 +332,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
             ),
             const SizedBox(height: 24),
             Text(
-              'У вас пока нет избранных товаров',
+              context.tr('favorites.empty'),
               style: theme.textTheme.headlineSmall?.copyWith(
                 fontWeight: FontWeight.w600,
                 color: isDark ? Colors.white : Colors.grey[800],
@@ -342,7 +341,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Добавьте товары в избранное, чтобы они появились здесь!',
+              context.tr('favorites.empty_hint'),
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: isDark ? Colors.grey[400] : Colors.grey[600],
               ),
@@ -365,7 +364,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
               child: ElevatedButton.icon(
                 onPressed: () => context.go('/'),
                 icon: const Icon(Icons.search_rounded),
-                label: const Text('Найти товары'),
+                label: Text(context.tr('favorites.find_products')),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.transparent,
                   shadowColor: Colors.transparent,
@@ -421,7 +420,10 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
-                              '${product.name} удален из избранного',
+                              context.tr(
+                                'favorites.removed',
+                                namedArgs: {'name': product.name},
+                              ),
                               style: const TextStyle(fontSize: 14),
                             ),
                           ),

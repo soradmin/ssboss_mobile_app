@@ -60,17 +60,15 @@ class ProfileApi {
     }
   }
 
-  /// Обновить профиль пользователя (только имя)
+  /// Обновить имя и email. Телефон не меняется.
   Future<Result<bool>> updateProfile({
     required String name,
+    String? email,
   }) async {
     try {
-      print('[DEBUG] ProfileApi.updateProfile: Обновляем профиль пользователя');
-      print('[DEBUG] ProfileApi.updateProfile: Имя: $name');
-      
-      // API принимает только name, без email
       final response = await _apiClient.post('/user/update-profile', data: {
         'name': name,
+        if (email != null && email.trim().isNotEmpty) 'email': email.trim(),
       });
       
       print('[DEBUG] ProfileApi.updateProfile: HTTP статус = ${response.statusCode}');

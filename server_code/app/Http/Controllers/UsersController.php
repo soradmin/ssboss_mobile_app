@@ -21,11 +21,13 @@ use App\Models\Helper\Validation;
 use App\Models\UserAddress;
 use App\Models\UserWishlist;
 use App\Models\Voucher;
+use App\Services\OsonSmsService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 use Laravel\Passport\Passport;
 use Laravel\Socialite\Facades\Socialite;
 
@@ -125,10 +127,14 @@ class UsersController extends ControllerHelper
             }
 
             if ($request->q) {
+                $q = $request->q;
                 $data = User::query()
                     ->orderBy($request->orderby ?? 'created_at', $request->type ?? 'desc')
-                    ->where('email', 'LIKE', "%{$request->q}%")
-                    ->orWhere('name', 'LIKE', "%{$request->q}%")
+                    ->where(function ($query) use ($q) {
+                        $query->where('email', 'LIKE', "%{$q}%")
+                            ->orWhere('name', 'LIKE', "%{$q}%")
+                            ->orWhere('phone', 'LIKE', "%{$q}%");
+                    })
                     ->paginate(Config::get('constants.api.PAGINATION'));
             } else {
                 $data = User::orderBy($request->orderby ?? 'created_at', $request->type ?? 'desc')
@@ -136,15 +142,16 @@ class UsersController extends ControllerHelper
             }
 
             $ids = [];
-            if ($request->time_zone) {
-                foreach ($data as $item) {
-                    array_push($ids, $item->id);
+            foreach ($data as $item) {
+                array_push($ids, $item->id);
+                if ($request->time_zone) {
                     $item['created'] = Utils::formatDate(Utils::convertTimeToUSERzone($item->created_at, $request->time_zone));
-                }
-            } else {
-                foreach ($data as $item) {
-                    array_push($ids, $item->id);
+                } else {
                     $item['created'] = Utils::formatDate($item->created_at);
+                }
+                $item['email'] = User::publicEmail($item->email);
+                if ($item->phone) {
+                    $item['phone'] = OsonSmsService::formatForDisplay($item->phone);
                 }
             }
 
@@ -307,8 +314,7 @@ class UsersController extends ControllerHelper
         try {
             $lang = $request->header('language');
 
-
-            $validator = Validation::admin_login($request);
+            $validator = Validation::phone_login($request, $lang);
             if ($validator)
                 return response()->json($validator);
 
@@ -321,7 +327,12 @@ class UsersController extends ControllerHelper
                 }
             }
 
-            $user = User::where('email', request('email'))->first();
+            $phone = OsonSmsService::normalizePhone($request->input('phone'));
+            if ($phone) {
+                $user = User::where('phone', $phone)->first();
+            } else {
+                $user = User::where('email', request('email'))->first();
+            }
 
             $password_check = Validation::password_check($user, request('password'));
             if ($password_check) {
@@ -336,65 +347,10 @@ class UsersController extends ControllerHelper
                 ));
             }
 
-            $data['expires_in'] = Carbon::now()
-                ->addDays(Config::get('constants.auth.EXPIRATION_IN_DAYS'));
-
-
-            if (request('remember_token')) {
-                $data['expires_in'] = Carbon::now()->addMonth(12);
-            } else {
-                $data['expires_in'] = Carbon::now()->addMonth(12);
-            }
-
-            Passport::personalAccessTokensExpireIn($data['expires_in']);
-
-            $data['token'] = Auth::user()->createToken('user', ['user'])->accessToken;
-
-            $userArr['id'] = $user->id;
-            $userArr['name'] = $user->name;
-            $userArr['email'] = $user->email;
-
-
-            if ($request->user_token) {
-
-                GuestUser::where('user_token', $request->user_token)->update([
-                    'name' => $user->name,
-                    'email' => $user->email
-                ]);
-
-                Cart::where('user_id', null)
-                    ->where('user_token', $request->user_token)
-                    ->update([
-                        'user_id' => $user->id
-                    ]);
-
-                Order::where('user_id', null)
-                    ->where('user_token', $request->user_token)
-                    ->update([
-                        'user_id' => $user->id
-                    ]);
-
-                UserAddress::where('user_id', null)
-                    ->where('user_token', $request->user_token)
-                    ->update([
-                        'user_id' => $user->id
-                    ]);
-
-                Cancellation::where('user_id', null)
-                    ->where('user_token', $request->user_token)
-                    ->update([
-                        'user_id' => $user->id
-                    ]);
-            }
-
-
-            $userArr['cart_count'] = Cart::where('user_id', $user->id)
-                ->sum('quantity');
-
-            $data['user'] = $userArr;
-
-            return response()->json(new Response($request->token, $data));
-
+            return response()->json(new Response(
+                $request->token,
+                $this->issueUserAuthPayload($user, $request)
+            ));
 
         } catch (\Exception $ex) {
             return response()->json(Validation::error($request->token, $ex->getMessage()));
@@ -489,6 +445,10 @@ class UsersController extends ControllerHelper
         try {
             $lang = $request->header('language');
 
+            // Новый поток: phone + code
+            if ($request->filled('phone')) {
+                return $this->verifyOtp($request);
+            }
 
             $validator = Validation::user_verification($request);
             if ($validator) {
@@ -527,6 +487,16 @@ class UsersController extends ControllerHelper
         try {
             $lang = $request->header('language');
 
+            // Новый поток: регистрация по телефону → отправка OTP
+            if ($request->filled('phone')) {
+                $validator = Validation::user_signup($request);
+                if ($validator) {
+                    return response()->json($validator);
+                }
+
+                // Сохраняем имя во временном поле через request для sendOtp
+                return $this->sendOtp($request);
+            }
 
             $validator = Validation::user_signup($request);
             if ($validator) {
@@ -567,6 +537,224 @@ class UsersController extends ControllerHelper
         }
     }
 
+    /**
+     * Отправка OTP на телефон (логин и регистрация).
+     * POST /user/otp/send  { phone, name? }
+     */
+    public function sendOtp(Request $request)
+    {
+        try {
+            $lang = $request->header('language');
+
+            $validator = Validation::phone_otp_send($request);
+            if ($validator) {
+                return response()->json($validator);
+            }
+
+            $phone = OsonSmsService::normalizePhone($request->input('phone'));
+            if (!$phone) {
+                return response()->json(Validation::error(null,
+                    $lang === 'tg'
+                        ? 'Рақами телефон нодуруст аст. Формат: 992XXXXXXXXX'
+                        : 'Некорректный номер телефона. Формат: 992XXXXXXXXX'
+                ));
+            }
+
+            $user = User::where('phone', $phone)->first();
+            $isNew = !$user;
+
+            // Для регистрации нового пользователя имя желательно
+            if ($isNew && $request->boolean('require_name', false) && !$request->filled('name')) {
+                return response()->json(Validation::error(null,
+                    $lang === 'tg' ? 'Номро ворид кунед' : 'Введите имя'
+                ));
+            }
+
+            $resendSec = (int) config('osonsms.otp_resend_seconds', 60);
+            if ($user && $user->otp_sent_at) {
+                // Считаем от момента отправки к «сейчас», иначе Carbon 3 даёт отрицательный интервал.
+                $elapsed = (int) Carbon::parse($user->otp_sent_at)->diffInSeconds(Carbon::now());
+                if ($elapsed < 0) {
+                    $elapsed = abs($elapsed);
+                }
+                if ($elapsed < $resendSec) {
+                    $wait = max(1, $resendSec - $elapsed);
+                    return response()->json(Validation::error(null,
+                        ($lang === 'tg'
+                            ? "Кодро пас аз {$wait} сония дубора фиристед"
+                            : "Повторная отправка через {$wait} сек.")
+                    ));
+                }
+            }
+
+            $length = (int) config('osonsms.otp_length', 4);
+            $min = (int) str_pad('1', $length, '0');
+            $max = (int) str_pad('', $length, '9');
+            $code = (string) random_int(max(1000, $min), max(9999, $max));
+            if ($length === 4) {
+                $code = (string) random_int(1000, 9999);
+            }
+
+            $sms = (new OsonSmsService())->sendOtp($phone, $code);
+            if (!$sms['ok']) {
+                return response()->json(Validation::error(null,
+                    $lang === 'tg'
+                        ? ('Ирсоли SMS нокомёб шуд: ' . ($sms['error'] ?? ''))
+                        : ('Не удалось отправить SMS: ' . ($sms['error'] ?? 'ошибка провайдера'))
+                ));
+            }
+
+            $name = trim((string) $request->input('name', ''));
+            if (!$user) {
+                // Черновик до верификации. Email заполняется позже в профиле.
+                $placeholderEmail = $phone . '@phone.ssboss.local';
+                $user = User::create([
+                    'name' => $name !== '' ? $name : 'User',
+                    'email' => $placeholderEmail,
+                    'phone' => $phone,
+                    'password' => Hash::make(Str::random(40)),
+                    'code' => (int) $code,
+                    'otp_sent_at' => Carbon::now(),
+                    'verified' => false,
+                ]);
+            } else {
+                $update = [
+                    'code' => (int) $code,
+                    'otp_sent_at' => Carbon::now(),
+                ];
+                if ($name !== '' && (!$user->name || $user->name === 'User')) {
+                    $update['name'] = $name;
+                }
+                User::where('id', $user->id)->update($update);
+            }
+
+            return response()->json(new Response(null, [
+                'phone' => $phone,
+                'phone_display' => OsonSmsService::formatForDisplay($phone),
+                'is_new' => $isNew,
+                'resend_in' => $resendSec,
+                'ttl' => (int) config('osonsms.otp_ttl_seconds', 300),
+            ]));
+        } catch (\Exception $ex) {
+            return response()->json(Validation::error(null, explode('.', $ex->getMessage())[0]));
+        }
+    }
+
+    /**
+     * Проверка OTP: регистрация/вход по коду из SMS. Пароль не используется.
+     * POST /user/otp/verify  { phone, code, name?, user_token? }
+     */
+    public function verifyOtp(Request $request)
+    {
+        try {
+            $lang = $request->header('language');
+
+            $validator = Validation::phone_otp_verify($request);
+            if ($validator) {
+                return response()->json($validator);
+            }
+
+            $phone = OsonSmsService::normalizePhone($request->input('phone'));
+            if (!$phone) {
+                return response()->json(Validation::error(null,
+                    $lang === 'tg'
+                        ? 'Рақами телефон нодуруст аст'
+                        : 'Некорректный номер телефона'
+                ));
+            }
+
+            $user = User::where('phone', $phone)->first();
+            if (!$user) {
+                return response()->json(Validation::error(null,
+                    __('lang.not_exists', [], $lang)
+                ));
+            }
+
+            $ttl = (int) config('osonsms.otp_ttl_seconds', 300);
+            if ($user->otp_sent_at && Carbon::parse($user->otp_sent_at)->addSeconds($ttl)->isPast()) {
+                return response()->json(Validation::error(null,
+                    $lang === 'tg'
+                        ? 'Муддати рамз ба охир расид. Рамзи нав дархост кунед'
+                        : 'Срок действия кода истёк. Запросите новый код'
+                ));
+            }
+
+            if ((string) $user->code !== (string) $request->input('code')) {
+                return response()->json(Validation::error(null,
+                    __('lang.code_invalid', [], $lang)
+                ));
+            }
+
+            $isFirstVerification = !$user->verified;
+
+            $name = trim((string) $request->input('name', ''));
+            $updates = [
+                'verified' => true,
+                'code' => null,
+            ];
+            if ($name !== '') {
+                $updates['name'] = $name;
+            }
+
+            User::where('id', $user->id)->update($updates);
+            $user = User::find($user->id);
+
+            Auth::login($user);
+            $payload = $this->issueUserAuthPayload($user, $request);
+            $payload['is_new'] = (bool) $isFirstVerification;
+            $payload['password_sent'] = false;
+
+            return response()->json(new Response($payload['token'] ?? '', $payload));
+        } catch (\Exception $ex) {
+            return response()->json(Validation::error(null, explode('.', $ex->getMessage())[0]));
+        }
+    }
+
+    /**
+     * Создание токена Passport + привязка guest-корзины.
+     */
+    private function issueUserAuthPayload(User $user, Request $request): array
+    {
+        $data = [];
+        $data['expires_in'] = Carbon::now()->addMonths(12);
+        Passport::personalAccessTokensExpireIn($data['expires_in']);
+        $data['token'] = $user->createToken('user', ['user'])->accessToken;
+
+        $userArr = [
+            'id' => $user->id,
+            'name' => $user->name,
+            'email' => User::publicEmail($user->email),
+            'phone' => $user->phone,
+        ];
+
+        if ($request->user_token) {
+            GuestUser::where('user_token', $request->user_token)->update([
+                'name' => $user->name,
+                'email' => $user->email,
+            ]);
+
+            Cart::where('user_id', null)
+                ->where('user_token', $request->user_token)
+                ->update(['user_id' => $user->id]);
+
+            Order::where('user_id', null)
+                ->where('user_token', $request->user_token)
+                ->update(['user_id' => $user->id]);
+
+            UserAddress::where('user_id', null)
+                ->where('user_token', $request->user_token)
+                ->update(['user_id' => $user->id]);
+
+            Cancellation::where('user_id', null)
+                ->where('user_token', $request->user_token)
+                ->update(['user_id' => $user->id]);
+        }
+
+        $userArr['cart_count'] = Cart::where('user_id', $user->id)->sum('quantity');
+        $data['user'] = $userArr;
+
+        return $data;
+    }
 
     public function logout(Request $request)
     {
@@ -597,11 +785,32 @@ class UsersController extends ControllerHelper
                 return response()->json($validator);
             }
 
-            User::where('id', Auth::user()->id)->update([
+            $user = Auth::user();
+            $updates = [
                 'name' => $request->name
-            ]);
+            ];
 
-            return Validation::success($request, __('lang.profile_updated', [], $lang), ['name' => $request->name]);
+            $email = trim((string) $request->input('email', ''));
+            if ($email !== '') {
+                $taken = User::where('email', $email)
+                    ->where('id', '!=', $user->id)
+                    ->exists();
+                if ($taken) {
+                    return response()->json(Validation::error($request->token,
+                        $lang === 'tg'
+                            ? 'Ин почта аллакай истифода мешавад'
+                            : 'Этот email уже занят'
+                    ));
+                }
+                $updates['email'] = $email;
+            }
+
+            User::where('id', $user->id)->update($updates);
+
+            return Validation::success($request, __('lang.profile_updated', [], $lang), [
+                'name' => $updates['name'],
+                'email' => $email !== '' ? $email : User::publicEmail($user->email),
+            ]);
 
         } catch (\Exception $ex) {
             return response()->json(Validation::error($request->token, $ex->getMessage()));
@@ -651,6 +860,8 @@ class UsersController extends ControllerHelper
                 $user['cart_count'] = Cart::where('user_id', $user->id)->sum('quantity');
                 $user['is_logged_in'] = true;
                 unset($user['code']);
+                $user['email'] = User::publicEmail($user->email);
+                $user['phone'] = $user->phone;
 
             } else if ($request->user_token) {
 

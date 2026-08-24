@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../core/config.dart';
+import '../../../core/l10n/locale_controller.dart';
 import '../../../core/widgets/bottom_navigation_bar.dart';
 import '../../../theme.dart';
 import '../models/store.dart';
@@ -76,8 +76,8 @@ class _FavoriteStoresScreenState extends ConsumerState<FavoriteStoresScreen> {
           SnackBar(
             content: Text(
               isFollowing
-                  ? 'Подписались на ${store.name}'
-                  : '${store.name} удалён из любимых',
+                  ? context.tr('stores.followed', namedArgs: {'name': store.name})
+                  : context.tr('stores.unfollowed', namedArgs: {'name': store.name}),
             ),
             backgroundColor: isFollowing ? Colors.green : Colors.orange,
             behavior: SnackBarBehavior.floating,
@@ -88,7 +88,7 @@ class _FavoriteStoresScreenState extends ConsumerState<FavoriteStoresScreen> {
       err: (error) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Ошибка: $error'),
+            content: Text('${context.tr('common.error')}: $error'),
             backgroundColor: Colors.red,
           ),
         );
@@ -96,14 +96,9 @@ class _FavoriteStoresScreenState extends ConsumerState<FavoriteStoresScreen> {
     );
   }
 
-  String _storeImageUrl(String? raw) {
-    if (raw == null || raw.trim().isEmpty) return '';
-    if (raw.startsWith('http')) return raw;
-    return AppConfig.imageUrl(raw);
-  }
-
   @override
   Widget build(BuildContext context) {
+    ref.watch(localeControllerProvider);
     return Scaffold(
       backgroundColor: backgroundColor,
       appBar: AppBar(
@@ -121,9 +116,9 @@ class _FavoriteStoresScreenState extends ConsumerState<FavoriteStoresScreen> {
             ),
           ),
         ),
-        title: const Text(
-          'Любимые магазины',
-          style: TextStyle(
+        title: Text(
+          context.tr('stores.favorites_title'),
+          style: const TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.bold,
           ),
@@ -140,6 +135,7 @@ class _FavoriteStoresScreenState extends ConsumerState<FavoriteStoresScreen> {
               : _stores.isEmpty
                   ? _buildEmptyState()
                   : _buildStoresList(),
+      extendBody: true,
       bottomNavigationBar: const BottomNavigationBarWidget(selectedIndex: 4),
     );
   }
@@ -151,7 +147,7 @@ class _FavoriteStoresScreenState extends ConsumerState<FavoriteStoresScreen> {
         children: [
           Icon(Icons.error_outline, size: 64, color: Colors.red[300]),
           const SizedBox(height: 16),
-          Text('Ошибка загрузки', style: Theme.of(context).textTheme.titleLarge),
+          Text(context.tr('catalog.load_error'), style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 8),
           Text(
             _error!,
@@ -163,7 +159,7 @@ class _FavoriteStoresScreenState extends ConsumerState<FavoriteStoresScreen> {
           const SizedBox(height: 16),
           ElevatedButton(
             onPressed: _loadFavoriteStores,
-            child: const Text('Повторить'),
+            child: Text(context.tr('common.retry')),
           ),
         ],
       ),
@@ -178,12 +174,12 @@ class _FavoriteStoresScreenState extends ConsumerState<FavoriteStoresScreen> {
           Icon(Icons.store_outlined, size: 64, color: Colors.grey[400]),
           const SizedBox(height: 16),
           Text(
-            'У вас пока нет любимых магазинов',
+            context.tr('stores.favorites_empty'),
             style: Theme.of(context).textTheme.titleLarge,
           ),
           const SizedBox(height: 8),
           Text(
-            'Подпишитесь на интересные магазины!',
+            context.tr('stores.favorites_hint'),
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: Colors.grey[600],
                 ),
@@ -191,7 +187,7 @@ class _FavoriteStoresScreenState extends ConsumerState<FavoriteStoresScreen> {
           const SizedBox(height: 24),
           ElevatedButton(
             onPressed: () => context.go('/'),
-            child: const Text('Найти магазины'),
+            child: Text(context.tr('stores.find_stores')),
           ),
         ],
       ),
@@ -212,7 +208,7 @@ class _FavoriteStoresScreenState extends ConsumerState<FavoriteStoresScreen> {
   }
 
   Widget _buildStoreCard(Store store) {
-    final imageUrl = _storeImageUrl(store.logo);
+    final imageUrl = store.resolvedLogoUrl;
 
     return Material(
       color: Colors.white,
@@ -288,13 +284,13 @@ class _FavoriteStoresScreenState extends ConsumerState<FavoriteStoresScreen> {
                         ),
                         _StatChip(
                           icon: Icons.inventory_2_outlined,
-                          label: '${store.formattedProducts} товаров',
+                          label: '${store.formattedProducts} ${context.tr('plurals.product_many')}',
                           color: primaryColor,
                         ),
                         if (store.formattedMemberSince.isNotEmpty)
                           _StatChip(
                             icon: Icons.calendar_today_outlined,
-                            label: 'с ${store.formattedMemberSince}',
+                            label: '${context.tr('stores.on_platform')}: ${store.formattedMemberSince}',
                             color: Colors.grey[700]!,
                           ),
                       ],
@@ -305,7 +301,7 @@ class _FavoriteStoresScreenState extends ConsumerState<FavoriteStoresScreen> {
               IconButton(
                 onPressed: () => _toggleFollow(store),
                 icon: const Icon(Icons.favorite_rounded, color: Colors.red),
-                tooltip: 'Убрать из любимых',
+                tooltip: context.tr('stores.remove_favorite'),
               ),
             ],
           ),

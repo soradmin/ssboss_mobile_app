@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/config.dart';
+import '../../../core/l10n/locale_controller.dart';
 import '../../../core/widgets/bottom_navigation_bar.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../checkout/models/address.dart';
@@ -67,8 +68,8 @@ class _AddressesScreenState extends ConsumerState<AddressesScreen> {
     // Нельзя удалить пункт выдачи
     if (address.type == 'pickup') {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Нельзя удалить пункт выдачи'),
+        SnackBar(
+          content: Text(context.tr('address.cannot_delete_pickup')),
           backgroundColor: Colors.orange,
         ),
       );
@@ -78,17 +79,17 @@ class _AddressesScreenState extends ConsumerState<AddressesScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Удалить адрес?'),
-        content: Text('Вы уверены, что хотите удалить адрес "${address.name}"?'),
+        title: Text(context.tr('address.delete_confirm')),
+        content: Text('${context.tr('address.delete_confirm')} "${address.name}"'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Отмена'),
+            child: Text(context.tr('common.cancel')),
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
             style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Удалить'),
+            child: Text(context.tr('common.delete')),
           ),
         ],
       ),
@@ -107,8 +108,8 @@ class _AddressesScreenState extends ConsumerState<AddressesScreen> {
         if (result is Ok) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Адрес удален!'),
+              SnackBar(
+                content: Text(context.tr('address.deleted')),
                 backgroundColor: Colors.green,
               ),
             );
@@ -120,7 +121,7 @@ class _AddressesScreenState extends ConsumerState<AddressesScreen> {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text('Ошибка: ${(result as Err).message}'),
+                content: Text('${context.tr('common.error')}: ${(result as Err).message}'),
                 backgroundColor: Colors.red,
               ),
             );
@@ -130,7 +131,7 @@ class _AddressesScreenState extends ConsumerState<AddressesScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Ошибка: $e'),
+              content: Text('${context.tr('common.error')}: $e'),
               backgroundColor: Colors.red,
             ),
           );
@@ -152,8 +153,8 @@ class _AddressesScreenState extends ConsumerState<AddressesScreen> {
     // Нельзя редактировать пункт выдачи
     if (address.type == 'pickup') {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Нельзя редактировать пункт выдачи'),
+        SnackBar(
+          content: Text(context.tr('address.cannot_edit_pickup')),
           backgroundColor: Colors.orange,
         ),
       );
@@ -170,6 +171,7 @@ class _AddressesScreenState extends ConsumerState<AddressesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    ref.watch(localeControllerProvider);
     ref.listen(authProvider, (previous, current) {
       final authReady = current.isAuthenticated && AppConfig.hasActiveToken();
       final wasReady =
@@ -201,9 +203,9 @@ class _AddressesScreenState extends ConsumerState<AddressesScreen> {
             ),
           ),
         ),
-        title: const Text(
-          'Мои адреса',
-          style: TextStyle(
+        title: Text(
+          context.tr('address.my_addresses'),
+          style: const TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.bold,
             fontSize: 20,
@@ -218,7 +220,7 @@ class _AddressesScreenState extends ConsumerState<AddressesScreen> {
           IconButton(
             onPressed: _addNewAddress,
             icon: const Icon(Icons.add, color: Colors.white, size: 26),
-            tooltip: 'Добавить адрес',
+            tooltip: context.tr('address.title_add'),
           ),
         ],
       ),
@@ -231,6 +233,7 @@ class _AddressesScreenState extends ConsumerState<AddressesScreen> {
           : error != null
               ? _buildErrorScreen(context, theme)
               : _buildAddressesList(context, theme),
+      extendBody: true,
       bottomNavigationBar: const BottomNavigationBarWidget(selectedIndex: 4),
     );
   }
@@ -249,7 +252,7 @@ class _AddressesScreenState extends ConsumerState<AddressesScreen> {
             ),
             const SizedBox(height: 24),
             Text(
-              'Ошибка загрузки адресов',
+              context.tr('catalog.load_error'),
               style: theme.textTheme.headlineSmall?.copyWith(
                 color: theme.colorScheme.onSurface,
               ),
@@ -287,7 +290,7 @@ class _AddressesScreenState extends ConsumerState<AddressesScreen> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-                child: const Text('Повторить'),
+                child: Text(context.tr('common.retry')),
               ),
             ),
           ],
@@ -313,14 +316,14 @@ class _AddressesScreenState extends ConsumerState<AddressesScreen> {
               ),
               const SizedBox(height: 24),
               Text(
-                'Нет сохраненных адресов',
+                context.tr('address.empty'),
                 style: theme.textTheme.headlineSmall?.copyWith(
                   color: theme.colorScheme.onSurface,
                 ),
               ),
               const SizedBox(height: 16),
               Text(
-                'Добавьте адрес для быстрого оформления заказов',
+                context.tr('address.empty_hint'),
                 textAlign: TextAlign.center,
                 style: theme.textTheme.bodyMedium?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
@@ -343,7 +346,7 @@ class _AddressesScreenState extends ConsumerState<AddressesScreen> {
                 child: ElevatedButton.icon(
                   onPressed: _addNewAddress,
                   icon: const Icon(Icons.add),
-                  label: const Text('Добавить адрес'),
+                  label: Text(context.tr('address.title_add')),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.transparent,
                     shadowColor: Colors.transparent,
@@ -376,7 +379,7 @@ class _AddressesScreenState extends ConsumerState<AddressesScreen> {
             Padding(
               padding: const EdgeInsets.only(bottom: 8.0),
               child: Text(
-                'Пункты выдачи',
+                context.tr('address.pickups'),
                 style: theme.textTheme.titleLarge?.copyWith(
                   fontWeight: FontWeight.w700,
                   fontSize: 22,
@@ -396,7 +399,7 @@ class _AddressesScreenState extends ConsumerState<AddressesScreen> {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Text(
-                'Адреса доставки',
+                context.tr('address.delivery_addresses'),
                 style: theme.textTheme.titleLarge?.copyWith(
                   fontWeight: FontWeight.w700,
                   fontSize: 22,
@@ -423,9 +426,9 @@ class _AddressesScreenState extends ConsumerState<AddressesScreen> {
                       ),
                       const SizedBox(width: 6),
                       Text(
-                        'Добавить',
-                        style: TextStyle(
-                          color: const Color(0xFF9C27B0),
+                        context.tr('checkout.add_address'),
+                        style: const TextStyle(
+                          color: Color(0xFF9C27B0),
                           fontWeight: FontWeight.w600,
                           fontSize: 14,
                         ),
@@ -468,7 +471,7 @@ class _AddressesScreenState extends ConsumerState<AddressesScreen> {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    'Нет адресов доставки',
+                    context.tr('checkout.no_addresses'),
                     style: theme.textTheme.titleMedium?.copyWith(
                       color: isDark ? Colors.white : Colors.grey[800],
                       fontWeight: FontWeight.w600,
@@ -476,7 +479,7 @@ class _AddressesScreenState extends ConsumerState<AddressesScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Добавьте адрес для доставки курьером',
+                    context.tr('checkout.add_address_hint'),
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: isDark ? Colors.grey[400] : Colors.grey[600],
                     ),
@@ -568,7 +571,7 @@ class _AddressesScreenState extends ConsumerState<AddressesScreen> {
                                     borderRadius: BorderRadius.circular(20),
                                   ),
                                   child: Text(
-                                    'По умолчанию',
+                                    context.tr('address.default'),
                                     style: theme.textTheme.labelSmall?.copyWith(
                                       color: Colors.white,
                                       fontWeight: FontWeight.w600,
@@ -635,7 +638,7 @@ class _AddressesScreenState extends ConsumerState<AddressesScreen> {
                                 Icon(Icons.edit_rounded, size: 18, color: Colors.grey[700]),
                                 const SizedBox(width: 12),
                                 Text(
-                                  'Редактировать',
+                                  context.tr('address.edit'),
                                   style: TextStyle(color: Colors.grey[700]),
                                 ),
                               ],
@@ -648,7 +651,7 @@ class _AddressesScreenState extends ConsumerState<AddressesScreen> {
                                 Icon(Icons.delete_outline_rounded, size: 18, color: Colors.red[400]),
                                 const SizedBox(width: 12),
                                 Text(
-                                  'Удалить',
+                                  context.tr('common.delete'),
                                   style: TextStyle(color: Colors.red[400]),
                                 ),
                               ],

@@ -2,17 +2,23 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/widgets/bottom_navigation_bar.dart';
+import '../../../core/l10n/locale_controller.dart';
+import '../../../core/result.dart';
+import '../../auth/providers/auth_provider.dart';
+import '../../auth/repo/auth_api.dart';
 import '../repo/profile_api.dart';
 import '../../../theme.dart';
 
 class EditProfileScreen extends ConsumerStatefulWidget {
   final String currentName;
   final String currentEmail;
+  final String currentPhone;
 
   const EditProfileScreen({
     super.key,
     required this.currentName,
     required this.currentEmail,
+    this.currentPhone = '',
   });
 
   @override
@@ -24,6 +30,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   final _passwordFormKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
+  final _phoneController = TextEditingController();
   final _currentPasswordController = TextEditingController();
   final _newPasswordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
@@ -37,13 +44,37 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   void initState() {
     super.initState();
     _nameController.text = widget.currentName;
-    _emailController.text = widget.currentEmail;
+    _emailController.text = AuthApi.isPlaceholderEmail(widget.currentEmail)
+        ? ''
+        : widget.currentEmail;
+    _phoneController.text = widget.currentPhone.isNotEmpty
+        ? AuthApi.formatPhoneDisplay(widget.currentPhone)
+        : widget.currentPhone;
+    WidgetsBinding.instance.addPostFrameCallback((_) => _hydrateFromServer());
+  }
+
+  Future<void> _hydrateFromServer() async {
+    final result = await ref.read(profileApiProvider).getUserProfile();
+    if (!mounted || result is! Ok<Map<String, dynamic>>) return;
+    final data = result.value;
+    final email = data['email']?.toString() ?? '';
+    final phone = data['phone']?.toString() ?? '';
+    setState(() {
+      if ((data['name']?.toString() ?? '').isNotEmpty) {
+        _nameController.text = data['name'].toString();
+      }
+      _emailController.text = AuthApi.isPlaceholderEmail(email) ? '' : email;
+      if (phone.isNotEmpty) {
+        _phoneController.text = AuthApi.formatPhoneDisplay(phone);
+      }
+    });
   }
 
   @override
   void dispose() {
     _nameController.dispose();
     _emailController.dispose();
+    _phoneController.dispose();
     _currentPasswordController.dispose();
     _newPasswordController.dispose();
     _confirmPasswordController.dispose();
@@ -59,14 +90,21 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     });
 
     final profileApi = ref.read(profileApiProvider);
-    // API принимает только name, без email (как видно из логов)
     final result = await profileApi.updateProfile(
       name: _nameController.text.trim(),
+      email: _emailController.text.trim(),
     );
 
     result.when(
       ok: (success) {
         if (success) {
+          final u = ref.read(authProvider);
+          ref.read(authProvider.notifier).login(
+                u.copyWith(
+                  name: _nameController.text.trim(),
+                  email: _emailController.text.trim(),
+                ),
+              );
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Row(
@@ -77,10 +115,10 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                     size: 20,
                   ),
                   const SizedBox(width: 8),
-                  const Expanded(
+                  Expanded(
                     child: Text(
-                      'Профиль успешно обновлен',
-                      style: TextStyle(fontSize: 14),
+                      context.tr('profile.profile_updated'),
+                      style: const TextStyle(fontSize: 14),
                     ),
                   ),
                 ],
@@ -110,7 +148,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Ошибка: $error',
+                    '${context.tr('common.error')}: $error',
                     style: const TextStyle(fontSize: 14),
                   ),
                 ),
@@ -161,10 +199,10 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                     size: 20,
                   ),
                   const SizedBox(width: 8),
-                  const Expanded(
+                  Expanded(
                     child: Text(
-                      'Пароль успешно изменен',
-                      style: TextStyle(fontSize: 14),
+                      context.tr('profile.password_updated'),
+                      style: const TextStyle(fontSize: 14),
                     ),
                   ),
                 ],
@@ -198,7 +236,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Ошибка: $error',
+                    '${context.tr('common.error')}: $error',
                     style: const TextStyle(fontSize: 14),
                   ),
                 ),
@@ -223,6 +261,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    ref.watch(localeControllerProvider);
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
@@ -243,9 +282,9 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
             ),
           ),
         ),
-        title: const Text(
-          'Редактировать профиль',
-          style: TextStyle(
+        title: Text(
+          context.tr('profile.edit'),
+          style: const TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.bold,
             fontSize: 20,
@@ -286,7 +325,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                             ),
                             const SizedBox(width: 12),
                             Text(
-                              'Обновить профиль',
+                              context.tr('profile.update_profile'),
                               style: theme.textTheme.titleLarge?.copyWith(
                                 fontWeight: FontWeight.w600,
                                 color: isDark ? Colors.white : Colors.grey[800],
@@ -298,8 +337,8 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                         TextFormField(
                           controller: _nameController,
                           decoration: InputDecoration(
-                            labelText: 'Имя',
-                            hintText: 'Введите ваше имя',
+                            labelText: context.tr('auth.name'),
+                            hintText: context.tr('auth.enter_name'),
                             prefixIcon: const Icon(Icons.person_outline_rounded),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
@@ -311,30 +350,24 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                           ),
                           validator: (value) {
                             if (value == null || value.trim().isEmpty) {
-                              return 'Пожалуйста, введите имя';
+                              return context.tr('auth.enter_name');
                             }
                             if (value.trim().length < 2) {
-                              return 'Имя должно содержать минимум 2 символа';
+                              return context.tr('auth.enter_name');
                             }
                             return null;
                           },
                         ),
                         const SizedBox(height: 16),
-                        // Email поле - только для отображения, не редактируется
                         TextFormField(
-                          controller: _emailController,
-                          keyboardType: TextInputType.emailAddress,
-                          enabled: false, // Поле неактивно, так как email не обновляется через этот API
+                          controller: _phoneController,
+                          enabled: false,
                           decoration: InputDecoration(
-                            labelText: 'Email',
-                            hintText: 'Email (не редактируется)',
-                            prefixIcon: const Icon(Icons.email_outlined),
+                            labelText: context.tr('profile.phone'),
+                            hintText: context.tr('profile.phone_readonly'),
+                            prefixIcon: const Icon(Icons.phone_outlined),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide(color: primaryColor, width: 2),
                             ),
                             disabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
@@ -343,7 +376,31 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                             filled: true,
                             fillColor: Colors.grey[100],
                           ),
-                          // Убираем валидацию, так как поле не редактируется
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: _emailController,
+                          keyboardType: TextInputType.emailAddress,
+                          decoration: InputDecoration(
+                            labelText: context.tr('auth.email'),
+                            hintText: context.tr('profile.email_optional'),
+                            prefixIcon: const Icon(Icons.email_outlined),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(color: primaryColor, width: 2),
+                            ),
+                          ),
+                          validator: (value) {
+                            final v = value?.trim() ?? '';
+                            if (v.isEmpty) return null;
+                            if (!RegExp(r'^[^@]+@[^@]+\.[^@]+$').hasMatch(v)) {
+                              return context.tr('auth.invalid_email');
+                            }
+                            return null;
+                          },
                         ),
                         const SizedBox(height: 24),
                         SizedBox(
@@ -373,7 +430,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                                       ),
                                     )
                                   : const Icon(Icons.save_rounded),
-                              label: Text(_isLoading ? 'Обновление...' : 'Обновить профиль'),
+                              label: Text(_isLoading ? context.tr('profile.updating') : context.tr('profile.update_profile')),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Colors.transparent,
                                 shadowColor: Colors.transparent,
@@ -415,7 +472,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                             ),
                             const SizedBox(width: 12),
                             Text(
-                              'Изменить пароль',
+                              context.tr('profile.change_password'),
                               style: theme.textTheme.titleLarge?.copyWith(
                                 fontWeight: FontWeight.w600,
                                 color: isDark ? Colors.white : Colors.grey[800],
@@ -428,8 +485,8 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                           controller: _currentPasswordController,
                           obscureText: !_showCurrentPassword,
                           decoration: InputDecoration(
-                            labelText: 'Текущий пароль',
-                            hintText: 'Введите текущий пароль',
+                            labelText: context.tr('profile.current_password'),
+                            hintText: context.tr('auth.enter_password'),
                             prefixIcon: const Icon(Icons.lock_outline_rounded),
                             suffixIcon: IconButton(
                               icon: Icon(
@@ -453,7 +510,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                           ),
                           validator: (value) {
                             if (value == null || value.isEmpty) {
-                              return 'Пожалуйста, введите текущий пароль';
+                              return context.tr('auth.enter_password');
                             }
                             return null;
                           },
@@ -463,8 +520,8 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                           controller: _newPasswordController,
                           obscureText: !_showNewPassword,
                           decoration: InputDecoration(
-                            labelText: 'Новый пароль',
-                            hintText: 'Введите новый пароль',
+                            labelText: context.tr('auth.new_password'),
+                            hintText: context.tr('auth.enter_new_password'),
                             prefixIcon: const Icon(Icons.lock_outline_rounded),
                             suffixIcon: IconButton(
                               icon: Icon(
@@ -488,10 +545,10 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                           ),
                           validator: (value) {
                             if (value == null || value.isEmpty) {
-                              return 'Пожалуйста, введите новый пароль';
+                              return context.tr('auth.enter_new_password');
                             }
                             if (value.length < 6) {
-                              return 'Пароль должен содержать минимум 6 символов';
+                              return context.tr('auth.min_6_chars');
                             }
                             return null;
                           },
@@ -501,8 +558,8 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                           controller: _confirmPasswordController,
                           obscureText: !_showConfirmPassword,
                           decoration: InputDecoration(
-                            labelText: 'Подтвердите пароль',
-                            hintText: 'Подтвердите новый пароль',
+                            labelText: context.tr('auth.confirm_password'),
+                            hintText: context.tr('auth.repeat_password'),
                             prefixIcon: const Icon(Icons.lock_outline_rounded),
                             suffixIcon: IconButton(
                               icon: Icon(
@@ -526,10 +583,10 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                           ),
                           validator: (value) {
                             if (value == null || value.isEmpty) {
-                              return 'Пожалуйста, подтвердите пароль';
+                              return context.tr('auth.repeat_password');
                             }
                             if (value != _newPasswordController.text) {
-                              return 'Пароли не совпадают';
+                              return context.tr('auth.passwords_mismatch');
                             }
                             return null;
                           },
@@ -562,7 +619,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                                       ),
                                     )
                                   : const Icon(Icons.lock_reset_rounded),
-                              label: Text(_isLoading ? 'Изменение...' : 'Изменить пароль'),
+                              label: Text(_isLoading ? context.tr('profile.changing') : context.tr('profile.change_password')),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Colors.transparent,
                                 shadowColor: Colors.transparent,
@@ -584,6 +641,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
           ),
         ),
       ),
+      extendBody: true,
       bottomNavigationBar: const BottomNavigationBarWidget(selectedIndex: 4),
     );
   }

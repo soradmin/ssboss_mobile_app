@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../../core/widgets/bottom_navigation_bar.dart';
+import '../../../core/l10n/locale_controller.dart';
 import '../../../theme.dart';
 import '../../../core/config.dart';
 import '../models/store.dart';
@@ -114,7 +115,7 @@ class _StoreDetailsScreenState extends ConsumerState<StoreDetailsScreen> {
         
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(isFollowing ? 'Подписались на ${_store!.name}' : 'Отписались от ${_store!.name}'),
+            content: Text(isFollowing ? context.tr('stores.followed', namedArgs: {'name': _store!.name}) : context.tr('stores.unfollowed', namedArgs: {'name': _store!.name})),
             backgroundColor: isFollowing ? Colors.green : Colors.orange,
           ),
         );
@@ -122,7 +123,7 @@ class _StoreDetailsScreenState extends ConsumerState<StoreDetailsScreen> {
       err: (error) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Ошибка: $error'),
+            content: Text('${context.tr('common.error')}: $error'),
             backgroundColor: Colors.red,
           ),
         );
@@ -132,6 +133,7 @@ class _StoreDetailsScreenState extends ConsumerState<StoreDetailsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    ref.watch(localeControllerProvider);
     return Scaffold(
       backgroundColor: backgroundColor,
       appBar: AppBar(
@@ -149,9 +151,9 @@ class _StoreDetailsScreenState extends ConsumerState<StoreDetailsScreen> {
             ),
           ),
         ),
-        title: const Text(
-          'Магазин',
-          style: TextStyle(
+        title: Text(
+          context.tr('stores.store'),
+          style: const TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.bold,
           ),
@@ -172,8 +174,9 @@ class _StoreDetailsScreenState extends ConsumerState<StoreDetailsScreen> {
           : _error != null
               ? _buildErrorState()
               : _store == null
-                  ? const Center(child: Text('Магазин не найден'))
+                  ? Center(child: Text(context.tr('stores.not_found')))
                   : _buildStoreDetails(),
+      extendBody: true,
       bottomNavigationBar: const BottomNavigationBarWidget(selectedIndex: 1),
     );
   }
@@ -190,7 +193,7 @@ class _StoreDetailsScreenState extends ConsumerState<StoreDetailsScreen> {
           ),
           const SizedBox(height: 16),
           Text(
-            'Ошибка загрузки',
+            context.tr('catalog.load_error'),
             style: Theme.of(context).textTheme.titleLarge,
           ),
           const SizedBox(height: 8),
@@ -226,7 +229,7 @@ class _StoreDetailsScreenState extends ConsumerState<StoreDetailsScreen> {
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              child: const Text('Повторить'),
+              child: Text(context.tr('common.retry')),
             ),
           ),
         ],
@@ -268,21 +271,34 @@ class _StoreDetailsScreenState extends ConsumerState<StoreDetailsScreen> {
                       width: 80,
                       height: 80,
                       decoration: BoxDecoration(
-                        color: Colors.grey[200],
-                        borderRadius: BorderRadius.circular(12),
+                        color: const Color(0xFFF3E8FF),
+                        borderRadius: BorderRadius.circular(16),
                       ),
-                      child: _store!.logo != null
-                          ? ClipRRect(
-                              borderRadius: BorderRadius.circular(12),
-                              child: Image.network(
-                                _store!.logo!,
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) {
-                                  return Icon(Icons.store, color: Colors.grey[400]);
-                                },
+                      clipBehavior: Clip.antiAlias,
+                      child: _store!.resolvedLogoUrl.isNotEmpty
+                          ? CachedNetworkImage(
+                              imageUrl: _store!.resolvedLogoUrl,
+                              fit: BoxFit.cover,
+                              width: 80,
+                              height: 80,
+                              placeholder: (context, url) => const Center(
+                                child: SizedBox(
+                                  width: 22,
+                                  height: 22,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                ),
+                              ),
+                              errorWidget: (context, url, error) => const Icon(
+                                Icons.storefront_rounded,
+                                color: Color(0xFF8813BA),
+                                size: 36,
                               ),
                             )
-                          : Icon(Icons.store, color: Colors.grey[400]),
+                          : const Icon(
+                              Icons.storefront_rounded,
+                              color: Color(0xFF8813BA),
+                              size: 36,
+                            ),
                     ),
                     const SizedBox(width: 16),
                     Expanded(
@@ -351,7 +367,7 @@ class _StoreDetailsScreenState extends ConsumerState<StoreDetailsScreen> {
                         color: Colors.white,
                       ),
                       label: Text(
-                        _store!.isFollowing ? 'Отписаться' : 'Подписаться',
+                        _store!.isFollowing ? context.tr('stores.unfollow') : context.tr('stores.follow'),
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
@@ -381,7 +397,7 @@ class _StoreDetailsScreenState extends ConsumerState<StoreDetailsScreen> {
                 // Описание
                 if (_store!.description != null) ...[
                   _buildInfoCard(
-                    'О магазине',
+                    context.tr('stores.about'),
                     _store!.description!,
                     Icons.info_outline,
                   ),
@@ -409,7 +425,7 @@ class _StoreDetailsScreenState extends ConsumerState<StoreDetailsScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Товары магазина (${_store!.totalProducts})',
+          '${context.tr('stores.products')} (${_store!.totalProducts})',
           style: Theme.of(context).textTheme.titleLarge?.copyWith(
             fontWeight: FontWeight.bold,
           ),
@@ -433,7 +449,7 @@ class _StoreDetailsScreenState extends ConsumerState<StoreDetailsScreen> {
             child: Padding(
               padding: const EdgeInsets.all(32),
               child: Text(
-                'Товары не найдены',
+                context.tr('stores.no_products'),
                 style: TextStyle(color: Colors.grey[600]),
               ),
             ),
@@ -467,7 +483,7 @@ class _StoreDetailsScreenState extends ConsumerState<StoreDetailsScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Статистика',
+              context.tr('stores.stats'),
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
@@ -479,7 +495,7 @@ class _StoreDetailsScreenState extends ConsumerState<StoreDetailsScreen> {
                 Expanded(
                   child: _buildStatItem(
                     icon: Icons.shopping_bag_outlined,
-                    label: 'Товары',
+                    label: context.tr('catalog.products'),
                     value: _store!.formattedProducts,
                     color: Colors.blue,
                   ),
@@ -493,7 +509,7 @@ class _StoreDetailsScreenState extends ConsumerState<StoreDetailsScreen> {
                 Expanded(
                   child: _buildStatItem(
                     icon: Icons.people_outline,
-                    label: 'Подписчики',
+                    label: context.tr('stores.subscribers'),
                     value: _store!.formattedFollowers,
                     color: Colors.green,
                   ),
@@ -507,7 +523,7 @@ class _StoreDetailsScreenState extends ConsumerState<StoreDetailsScreen> {
                 Expanded(
                   child: _buildStatItem(
                     icon: Icons.calendar_today_outlined,
-                    label: 'На платформе',
+                    label: context.tr('stores.on_platform'),
                     value: _store!.formattedMemberSince,
                     color: Colors.orange,
                     valueFontSize: 13,
@@ -626,7 +642,7 @@ class _StoreDetailsScreenState extends ConsumerState<StoreDetailsScreen> {
                 Icon(Icons.contact_mail, color: primaryColor),
                 const SizedBox(width: 8),
                 Text(
-                  'Контактная информация',
+                  context.tr('stores.contacts'),
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
@@ -637,11 +653,11 @@ class _StoreDetailsScreenState extends ConsumerState<StoreDetailsScreen> {
             if (_store!.email != null)
               _buildContactItem(Icons.email, 'Email', _store!.email!),
             if (_store!.phone != null)
-              _buildContactItem(Icons.phone, 'Телефон', _store!.phone!),
+              _buildContactItem(Icons.phone, context.tr('stores.phone'), _store!.phone!),
             if (_store!.website != null)
-              _buildContactItem(Icons.language, 'Сайт', _store!.website!),
+              _buildContactItem(Icons.language, context.tr('stores.website'), _store!.website!),
             if (_store!.address != null)
-              _buildContactItem(Icons.location_on, 'Адрес', _store!.address!),
+              _buildContactItem(Icons.location_on, context.tr('stores.address'), _store!.address!),
           ],
         ),
       ),

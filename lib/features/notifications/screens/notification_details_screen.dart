@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../../core/l10n/locale_controller.dart';
 
 /// Экран для отображения полного содержимого push-уведомления
-class NotificationDetailsScreen extends StatefulWidget {
+class NotificationDetailsScreen extends ConsumerStatefulWidget {
   final String title;
   final String? htmlBody;
 
@@ -16,17 +18,18 @@ class NotificationDetailsScreen extends StatefulWidget {
   });
 
   @override
-  State<NotificationDetailsScreen> createState() => _NotificationDetailsScreenState();
+  ConsumerState<NotificationDetailsScreen> createState() => _NotificationDetailsScreenState();
 }
 
-class _NotificationDetailsScreenState extends State<NotificationDetailsScreen> {
+class _NotificationDetailsScreenState extends ConsumerState<NotificationDetailsScreen> {
   bool _isLoadingUrl = false;
 
   @override
   Widget build(BuildContext context) {
+    ref.watch(localeControllerProvider);
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Уведомление'),
+        title: Text(context.tr('notifications.single')),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => context.pop(),
@@ -36,7 +39,7 @@ class _NotificationDetailsScreenState extends State<NotificationDetailsScreen> {
             IconButton(
               icon: const Icon(Icons.share),
               onPressed: () => _shareNotification(context),
-              tooltip: 'Поделиться',
+              tooltip: context.tr('notifications.share'),
             ),
         ],
       ),
@@ -229,16 +232,16 @@ class _NotificationDetailsScreenState extends State<NotificationDetailsScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Не удалось открыть ссылку: $url'),
+              content: Text('${context.tr('common.error')}: $url'),
               duration: const Duration(seconds: 3),
               action: SnackBarAction(
-                label: 'Скопировать',
+                label: context.tr('notifications.copy'),
                 onPressed: () {
                   Clipboard.setData(ClipboardData(text: url));
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Ссылка скопирована в буфер обмена'),
-                      duration: Duration(seconds: 2),
+                    SnackBar(
+                      content: Text(context.tr('notifications.copied')),
+                      duration: const Duration(seconds: 2),
                     ),
                   );
                 },
@@ -252,16 +255,16 @@ class _NotificationDetailsScreenState extends State<NotificationDetailsScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Ошибка при открытии ссылки: ${e.toString()}'),
+            content: Text('${context.tr('common.error')}: ${e.toString()}'),
             duration: const Duration(seconds: 3),
             action: SnackBarAction(
-              label: 'Скопировать',
+              label: context.tr('notifications.copy'),
               onPressed: () {
                 Clipboard.setData(ClipboardData(text: url));
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Ссылка скопирована в буфер обмена'),
-                    duration: Duration(seconds: 2),
+                  SnackBar(
+                    content: Text(context.tr('notifications.copied')),
+                    duration: const Duration(seconds: 2),
                   ),
                 );
               },
@@ -313,9 +316,9 @@ class _NotificationDetailsScreenState extends State<NotificationDetailsScreen> {
 
     Clipboard.setData(ClipboardData(text: shareText));
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Текст уведомления скопирован в буфер обмена'),
-        duration: Duration(seconds: 2),
+      SnackBar(
+        content: Text(context.tr('notifications.copied')),
+        duration: const Duration(seconds: 2),
       ),
     );
   }

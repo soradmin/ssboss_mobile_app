@@ -22,12 +22,14 @@ class User extends Authenticatable
     protected $casts = [
         'viewed' => 'integer',
         'verified' => 'integer',
-        'remember_token' => 'integer'
+        'remember_token' => 'integer',
+        'password_issued_at' => 'datetime',
+        'otp_sent_at' => 'datetime',
     ];
 
 
-    protected $fillable = ['name', 'email', 'password', 'code', 'default_address', 'phone',
-        'verified', 'remember_token', 'facebook_id', 'google_id', 'viewed', 'fcm_token'
+    protected $fillable = ['name', 'email', 'password', 'password_issued_at', 'code', 'otp_sent_at',
+        'default_address', 'phone', 'verified', 'remember_token', 'facebook_id', 'google_id', 'viewed', 'fcm_token'
     ];
 
     /**
@@ -36,4 +38,17 @@ class User extends Authenticatable
      * @var array
      */
     protected $hidden = ['password', 'remember_token'];
+
+    public static function isPlaceholderEmail(?string $email): bool
+    {
+        return is_string($email) && str_ends_with($email, '@phone.ssboss.local');
+    }
+
+    public static function publicEmail(?string $email): string
+    {
+        if (!$email || self::isPlaceholderEmail($email)) {
+            return '';
+        }
+        return $email;
+    }
 }

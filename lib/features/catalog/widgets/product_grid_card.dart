@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:shimmer/shimmer.dart';
 
 import '../../../core/config.dart';
+import '../../../core/l10n/locale_controller.dart';
 import '../../cart/controllers/cart_controller.dart';
 import '../../compare/repo/compare_api.dart';
 import '../../favorites/repo/favorites_api.dart';
@@ -20,16 +21,29 @@ typedef ProductAddToCartCallback = Future<void> Function(
   Product product,
 );
 
-/// Карточка товара в сетке — та же, что в экране каталога (`products_screen`).
+/// Карточка товара в сетке — одна и та же на главной, в каталоге,
+/// избранном, сравнении, у магазина и в блоках «смотрите также».
 class ProductGridCard extends ConsumerWidget {
-  /// Фото 3:4 (как Wildberries) — удобно для вертикальных инфографик на карточке.
+  /// Вытянутое фото 3:4 на светлой подложке.
   static const double imageAspectRatio = 3 / 4;
 
-  /// `childAspectRatio` для GridView/SliverGrid (2 колонки).
-  /// Чуть ниже 0.58 — 2 строки названия без обрезки, без лишнего зазора в ячейке.
-  static const double gridChildAspectRatio = 0.57;
-  static const double gridMainAxisSpacing = 8;
-  static const double gridCrossAxisSpacing = 10;
+  /// `childAspectRatio` для GridView/SliverGrid (2 колонки):
+  /// фото 3:4 + название в 2 строки + рейтинг + цена.
+  static const double gridChildAspectRatio = 0.52;
+  static const double gridMainAxisSpacing = 18;
+  static const double gridCrossAxisSpacing = 14;
+
+  static const Color _brandStart = Color(0xFF8813BA);
+  static const Color _brandMid = Color(0xFFB02FE0);
+  static const Color _brandLight = Color(0xFFE040FB);
+  static const Color _ink = Color(0xFF17131B);
+  static const Color _muted = Color(0xFF8B8395);
+  static const Color _imageBg = Color(0xFFF4F2F6);
+  static const LinearGradient brandGradient = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [_brandStart, _brandMid, _brandLight],
+  );
 
   final Product product;
   final ProductAddToCartCallback? onAddToCart;
@@ -55,6 +69,21 @@ class ProductGridCard extends ConsumerWidget {
     return AppConfig.imageUrl(raw);
   }
 
+  /// Подпись «(N отзывов)» с корректным склонением; реальные значения из API.
+  static String reviewsLabel(BuildContext context, int count) {
+    final mod10 = count % 10;
+    final mod100 = count % 100;
+    final String key;
+    if (mod10 == 1 && mod100 != 11) {
+      key = 'product.reviews_one';
+    } else if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) {
+      key = 'product.reviews_few';
+    } else {
+      key = 'product.reviews_many';
+    }
+    return context.tr(key, namedArgs: {'count': count.toString()});
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final items = ref.watch(cartProvider);
@@ -66,22 +95,15 @@ class ProductGridCard extends ConsumerWidget {
       }
     }
 
-    const purple = Color(0xFF7B3FE4);
     final imageUrl = imageUrlFor(product);
+    final hasRating = product.rating > 0;
 
     return Align(
       alignment: Alignment.topCenter,
-      child: InkWell(
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
         onTap: () => context.push('/product/${product.id}', extra: product),
-        borderRadius: BorderRadius.circular(12),
-        child: Card(
-          margin: EdgeInsets.zero,
-          elevation: 2,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: Column(
+        child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -91,48 +113,62 @@ class ProductGridCard extends ConsumerWidget {
                 fit: StackFit.expand,
                 children: [
                   ClipRRect(
-                    borderRadius: const BorderRadius.vertical(
-                      top: Radius.circular(12),
+                    borderRadius: BorderRadius.circular(18),
+                    child: ColoredBox(
+                      color: _imageBg,
+                      child: imageUrl.isEmpty
+                          ? const _ProductGridImageShimmer()
+                          : CachedNetworkImage(
+                              imageUrl: imageUrl,
+                              fit: BoxFit.cover,
+                              width: double.infinity,
+                              height: double.infinity,
+                              // Ограничиваем декод в RAM — иначе iOS убивает приложение
+                              // при длинном скролле каталога (full-res JPEG × десятки карточек).
+                              memCacheWidth: (MediaQuery.devicePixelRatioOf(context) *
+                                      (MediaQuery.sizeOf(context).width / 2))
+                                  .round()
+                                  .clamp(160, 480),
+                              memCacheHeight: (MediaQuery.devicePixelRatioOf(context) *
+                                      (MediaQuery.sizeOf(context).width / 2) /
+                                      ProductGridCard.imageAspectRatio)
+                                  .round()
+                                  .clamp(200, 640),
+                              maxWidthDiskCache: 480,
+                              maxHeightDiskCache: 640,
+                              placeholder: (context, url) =>
+                                  const _ProductGridImageShimmer(),
+                              errorWidget: (context, url, error) =>
+                                  const _ProductGridImageError(),
+                            ),
                     ),
-                    child: imageUrl.isEmpty
-                        ? const _ProductGridImageShimmer()
-                        : CachedNetworkImage(
-                            imageUrl: imageUrl,
-                            fit: BoxFit.cover,
-                            width: double.infinity,
-                            height: double.infinity,
-                            placeholder: (context, url) =>
-                                const _ProductGridImageShimmer(),
-                            errorWidget: (context, url, error) =>
-                                const _ProductGridImageError(),
-                          ),
                   ),
                   if (product.badge != null && product.badge!.isNotEmpty)
                     Positioned(
-                      top: 6,
-                      left: 6,
+                      top: 10,
+                      left: 10,
                       child: Container(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 3,
+                          horizontal: 8,
+                          vertical: 4,
                         ),
                         decoration: BoxDecoration(
-                          color: purple,
-                          borderRadius: BorderRadius.circular(6),
+                          gradient: brandGradient,
+                          borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(
                           product.badge!,
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 9,
-                            fontWeight: FontWeight.bold,
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
                       ),
                     ),
                   Positioned(
-                    top: 8,
-                    right: 8,
+                    top: 10,
+                    right: 10,
                     child: initiallyInCompare
                         ? ProductGridCompareButton(
                             product: product,
@@ -146,8 +182,8 @@ class ProductGridCard extends ConsumerWidget {
                           ),
                   ),
                   Positioned(
-                    right: 8,
-                    bottom: 8,
+                    right: 10,
+                    bottom: 10,
                     child: Stack(
                       clipBehavior: Clip.none,
                       children: [
@@ -163,30 +199,30 @@ class ProductGridCard extends ConsumerWidget {
                             if (!context.mounted) return;
                             ScaffoldMessenger.of(context).hideCurrentSnackBar();
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Товар добавлен в корзину'),
-                                duration: Duration(milliseconds: 900),
+                              SnackBar(
+                                content: Text(context.tr('home.added_to_cart')),
+                                duration: const Duration(milliseconds: 900),
                               ),
                             );
                           },
                           child: Container(
-                            width: 48,
-                            height: 48,
-                            decoration: const BoxDecoration(
-                              color: purple,
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              gradient: brandGradient,
                               shape: BoxShape.circle,
                               boxShadow: [
                                 BoxShadow(
-                                  color: Color(0x33000000),
-                                  blurRadius: 8,
-                                  offset: Offset(0, 4),
+                                  color: _brandStart.withOpacity(0.35),
+                                  blurRadius: 12,
+                                  offset: const Offset(0, 6),
                                 ),
                               ],
                             ),
                             child: const Icon(
-                              Icons.shopping_cart_outlined,
+                              Icons.shopping_bag_outlined,
                               color: Colors.white,
-                              size: 22,
+                              size: 19,
                             ),
                           ),
                         ),
@@ -199,7 +235,7 @@ class ProductGridCard extends ConsumerWidget {
                               height: 20,
                               alignment: Alignment.center,
                               decoration: BoxDecoration(
-                                color: Colors.redAccent,
+                                color: const Color(0xFFEF4444),
                                 borderRadius: BorderRadius.circular(10),
                                 border: Border.all(color: Colors.white, width: 2),
                               ),
@@ -219,62 +255,69 @@ class ProductGridCard extends ConsumerWidget {
                 ],
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(8, 6, 8, 0),
-              child: ProductPriceRow.fromProduct(product),
+            const SizedBox(height: 10),
+            Text(
+              product.name,
+              style: const TextStyle(
+                fontSize: 13.5,
+                fontWeight: FontWeight.w700,
+                height: 1.25,
+                letterSpacing: -0.2,
+                leadingDistribution: TextLeadingDistribution.even,
+                color: _ink,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
             ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(8, 4, 8, 6),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    product.name,
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w500,
-                      height: 1.3,
-                      leadingDistribution: TextLeadingDistribution.even,
-                      color: Color(0xFF4A5568),
-                    ),
-                    maxLines: 2,
+            const SizedBox(height: 5),
+            hasRating
+                ? Row(
+                    children: [
+                      const Icon(
+                        Icons.star_rounded,
+                        size: 15,
+                        color: Color(0xFFFFB300),
+                      ),
+                      const SizedBox(width: 3),
+                      Text(
+                        product.rating.toStringAsFixed(1),
+                        style: const TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w700,
+                          color: _ink,
+                        ),
+                      ),
+                      if (product.reviewCount > 0) ...[
+                        const SizedBox(width: 5),
+                        Flexible(
+                          child: Text(
+                            reviewsLabel(context, product.reviewCount),
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: _muted,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ],
+                  )
+                : Text(
+                    context.tr('product.no_reviews'),
+                    style: const TextStyle(fontSize: 12, color: _muted),
+                    maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  if (product.rating > 0)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 2),
-                      child: Row(
-                        children: [
-                          const Icon(
-                            Icons.star,
-                            size: 11,
-                            color: Colors.amber,
-                          ),
-                          const SizedBox(width: 2),
-                          Text(
-                            product.rating.toStringAsFixed(1),
-                            style: const TextStyle(fontSize: 9),
-                          ),
-                          if (product.reviewCount > 0) ...[
-                            const SizedBox(width: 4),
-                            Text(
-                              '(${product.reviewCount})',
-                              style: TextStyle(
-                                fontSize: 9,
-                                color: Colors.grey[600],
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                ],
-              ),
+            const SizedBox(height: 6),
+            ProductPriceRow.fromProduct(
+              product,
+              priceFontSize: 16.5,
+              oldPriceFontSize: 12,
+              priceColor: _ink,
             ),
           ],
         ),
-      ),
       ),
     );
   }
@@ -319,96 +362,54 @@ class ProductGridCardSkeleton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const bar = Color(0xFFCBCBCB);
+    const bar = Color(0xFFE6E2EA);
     return Align(
       alignment: Alignment.topCenter,
-      child: Card(
-        margin: EdgeInsets.zero,
-        elevation: 2,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Shimmer.fromColors(
-          baseColor: const Color(0xFFE6E6E6),
-          highlightColor: const Color(0xFFF8F8F8),
-          period: const Duration(milliseconds: 1250),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              AspectRatio(
-                aspectRatio: ProductGridCard.imageAspectRatio,
-                child: ColoredBox(
-                  color: const Color(0xFFE6E6E6),
-                  child: Stack(
-                    children: [
-                      Positioned(
-                        top: 8,
-                        right: 8,
-                        child: Container(
-                          width: 36,
-                          height: 36,
-                          decoration: const BoxDecoration(
-                            color: bar,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                      ),
-                      Positioned(
-                        right: 8,
-                        bottom: 8,
-                        child: Container(
-                          width: 44,
-                          height: 44,
-                          decoration: const BoxDecoration(
-                            color: Color(0xFFB8B8B8),
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+      child: Shimmer.fromColors(
+        baseColor: const Color(0xFFEDE9F1),
+        highlightColor: const Color(0xFFF9F7FB),
+        period: const Duration(milliseconds: 1250),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AspectRatio(
+              aspectRatio: ProductGridCard.imageAspectRatio,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEDE9F1),
+                  borderRadius: BorderRadius.circular(18),
                 ),
               ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
-                child: Container(
-                  height: 16,
-                  width: 64,
-                  decoration: BoxDecoration(
-                    color: bar,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                ),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              height: 12,
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: bar,
+                borderRadius: BorderRadius.circular(4),
               ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      height: 10,
-                      width: double.infinity,
-                      decoration: BoxDecoration(
-                        color: bar,
-                        borderRadius: BorderRadius.circular(3),
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Container(
-                      height: 10,
-                      width: 110,
-                      decoration: BoxDecoration(
-                        color: bar,
-                        borderRadius: BorderRadius.circular(3),
-                      ),
-                    ),
-                  ],
-                ),
+            ),
+            const SizedBox(height: 8),
+            Container(
+              height: 11,
+              width: 96,
+              decoration: BoxDecoration(
+                color: bar,
+                borderRadius: BorderRadius.circular(4),
               ),
-            ],
-          ),
+            ),
+            const SizedBox(height: 10),
+            Container(
+              height: 16,
+              width: 72,
+              decoration: BoxDecoration(
+                color: bar,
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -474,15 +475,18 @@ class _ProductGridCompareButtonState
         onTap: _toggleCompare,
         borderRadius: BorderRadius.circular(20),
         child: Container(
-          width: 36,
-          height: 36,
+          width: 34,
+          height: 34,
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: Colors.white.withOpacity(0.92),
             shape: BoxShape.circle,
-            border: Border.all(
-              color: Colors.grey[300]!,
-              width: 1,
-            ),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x1A17131B),
+                blurRadius: 8,
+                offset: Offset(0, 3),
+              ),
+            ],
           ),
           child: _isLoading
               ? const Padding(
@@ -546,7 +550,7 @@ class _ProductGridFavoriteButtonState
             });
             widget.onFavoriteChanged?.call(false);
           },
-          err: (_) => setState(() => _isLoading = false),
+          err: _onFavoriteErr,
         );
       } else {
         final result = await favoritesApi.addToFavorites(widget.product.id);
@@ -559,12 +563,35 @@ class _ProductGridFavoriteButtonState
             });
             widget.onFavoriteChanged?.call(true);
           },
-          err: (_) => setState(() => _isLoading = false),
+          err: _onFavoriteErr,
         );
       }
     } catch (_) {
       setState(() => _isLoading = false);
+      _onFavoriteErr(FavoritesApi.needAuth);
     }
+  }
+
+  void _onFavoriteErr(String error) {
+    setState(() => _isLoading = false);
+    if (!mounted) return;
+    final needAuth =
+        error == FavoritesApi.needAuth || !AppConfig.hasActiveToken();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          needAuth
+              ? context.tr('favorites.login_required')
+              : context.tr('common.error'),
+        ),
+        action: needAuth
+            ? SnackBarAction(
+                label: context.tr('auth.login'),
+                onPressed: () => context.push('/login'),
+              )
+            : null,
+      ),
+    );
   }
 
   @override
@@ -575,15 +602,18 @@ class _ProductGridFavoriteButtonState
         onTap: _toggleFavorite,
         borderRadius: BorderRadius.circular(20),
         child: Container(
-          width: 36,
-          height: 36,
+          width: 34,
+          height: 34,
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: Colors.white.withOpacity(0.92),
             shape: BoxShape.circle,
-            border: Border.all(
-              color: Colors.grey[300]!,
-              width: 1,
-            ),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x1A17131B),
+                blurRadius: 8,
+                offset: Offset(0, 3),
+              ),
+            ],
           ),
           child: _isLoading
               ? const Padding(
@@ -591,9 +621,11 @@ class _ProductGridFavoriteButtonState
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
               : Icon(
-                  _isFavorite ? Icons.favorite : Icons.favorite_border,
-                  color: _isFavorite ? Colors.red : Colors.black87,
-                  size: 20,
+                  _isFavorite ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+                  color: _isFavorite
+                      ? const Color(0xFFB02FE0)
+                      : const Color(0xFF8B8395),
+                  size: 19,
                 ),
         ),
       ),

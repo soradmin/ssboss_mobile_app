@@ -3,6 +3,7 @@
 use App\Models\Helper\Response;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\InstallController;
+use App\Http\Controllers\UsersController;
 use \Illuminate\Support\Facades\Artisan;
 
 /*
@@ -21,6 +22,17 @@ use \Illuminate\Support\Facades\Artisan;
 Route::group(['middleware' => 'web'], function () {
     Route::get('install', [InstallController::class, 'install']);
     Route::get('update', [InstallController::class, 'update']);
+
+    Route::redirect('login', '/otp-auth.html?mode=login');
+    Route::redirect('signup', '/otp-auth.html?mode=login');
+    Route::redirect('register', '/otp-auth.html?mode=login');
+    Route::redirect('forgot-password', '/otp-auth.html?mode=login');
+
+    // Старая otp-auth.html бьёт сюда (не в /api/v1). Без этих POST SPA отдаёт 405, а JS считает это успехом.
+    Route::post('user/otp/send', [UsersController::class, 'sendOtp'])
+        ->middleware('throttle:10,1');
+    Route::post('user/otp/verify', [UsersController::class, 'verifyOtp'])
+        ->middleware('throttle:20,1');
 
     Route::get('{any}', function () {
 

@@ -332,7 +332,11 @@ class FrontendController extends Controller
                         $join->on('sl.store_id', '=', 'stores.id');
                         $join->where('sl.lang', $lang);
                     })
-                    ->select('stores.*', 'sl.name', 'sl.meta_title', 'sl.meta_description', 'sl.meta_keywords')
+                    ->select(
+                        'stores.*',
+                        DB::raw("COALESCE(NULLIF(sl.name, ''), stores.name) as name"),
+                        'sl.meta_title', 'sl.meta_description', 'sl.meta_keywords'
+                    )
                     ->first();
 
 
@@ -1654,9 +1658,9 @@ class FrontendController extends Controller
 
             $lang = $request->header('language');
 
-            $cacheKey = 'detail.' . $id . $lang;
+            $cacheKey = 'detail.v2.' . $id . $lang;
             if (!$lang) {
-                $cacheKey = 'detail.' . $id;
+                $cacheKey = 'detail.v2.' . $id;
             }
 
             $productData = Utils::cacheRemember($cacheKey, function () use ($request, $id, $lang) {
@@ -1679,7 +1683,10 @@ class FrontendController extends Controller
                                 $join->on('sl.store_id', '=', 'stores.id');
                                 $join->where('sl.lang', $lang);
                             })
-                                ->select('stores.*', 'sl.name');
+                                ->select(
+                                    'stores.*',
+                                    DB::raw("COALESCE(NULLIF(sl.name, ''), stores.name) as name")
+                                );
 
                         }])
                         ->with(['bundle_deal' => function ($query) use ($lang) {
@@ -1726,11 +1733,19 @@ class FrontendController extends Controller
                         $join->where('pl.lang', $lang);
                     });
 
-                    $query = $query->select('products.*', 'pl.title',
-                        'pl.description', 'pl.overview', 'pl.unit', 'pl.badge', 'pl.meta_title',
-                        'pl.meta_description', 'pl.meta_keywords',
+                    $query = $query->select(
+                        'products.*',
+                        DB::raw("COALESCE(NULLIF(pl.title, ''), products.title) as title"),
+                        DB::raw("COALESCE(NULLIF(pl.description, ''), products.description) as description"),
+                        DB::raw("COALESCE(NULLIF(pl.overview, ''), products.overview) as overview"),
+                        DB::raw("COALESCE(NULLIF(pl.unit, ''), products.unit) as unit"),
+                        DB::raw("COALESCE(NULLIF(pl.badge, ''), products.badge) as badge"),
+                        DB::raw("COALESCE(NULLIF(pl.meta_title, ''), products.meta_title) as meta_title"),
+                        DB::raw("COALESCE(NULLIF(pl.meta_description, ''), products.meta_description) as meta_description"),
+                        DB::raw("COALESCE(NULLIF(pl.meta_keywords, ''), products.meta_keywords) as meta_keywords"),
                         'flash_sale_products.price', 'flash_sales.end_time',
-                        'user_wishlists.id as wishlisted');
+                        'user_wishlists.id as wishlisted'
+                    );
 
 
                     $query = $query->where('products.status', Config::get('constants.status.PUBLIC'));
@@ -1756,7 +1771,14 @@ class FrontendController extends Controller
                             $join->on('al.attribute_id', '=', 'attributes.id');
                             $join->where('al.lang', $lang);
                         })
-                        ->select('attributes.*', 'al.title')
+                        // COALESCE: если перевода нет — берём title из админки (иначе language-header затирает в null)
+                        ->select(
+                            'attributes.id',
+                            'attributes.created_at',
+                            'attributes.updated_at',
+                            'attributes.admin_id',
+                            DB::raw("COALESCE(NULLIF(al.title, ''), attributes.title) as title")
+                        )
                         ->with(['values' => function ($q) use ($id, $lang) {
                             $q->join('inventory_attributes as ia', function ($join) {
                                 $join->on('ia.attribute_value_id', '=', 'attribute_values.id');
@@ -1771,7 +1793,20 @@ class FrontendController extends Controller
                                         $join->on('attribute_values.id', '=', 'avl.attribute_value_id');
                                         $join->where('avl.lang', $lang);
                                     })
-                                ->select('attribute_values.*', 'i.*', 'ia.*', 'avl.title');
+                                ->select(
+                                    'attribute_values.id',
+                                    'attribute_values.attribute_id',
+                                    'attribute_values.created_at',
+                                    'attribute_values.updated_at',
+                                    'attribute_values.admin_id',
+                                    DB::raw("COALESCE(NULLIF(avl.title, ''), attribute_values.title) as title"),
+                                    'i.id as inventory_id',
+                                    'i.product_id',
+                                    'i.quantity',
+                                    'i.price',
+                                    'i.sku',
+                                    'ia.attribute_value_id'
+                                );
                         }])
                         ->get();
 

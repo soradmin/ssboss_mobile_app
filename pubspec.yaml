@@ -1,13 +1,15 @@
 name: ssboss_wb_app
 description: SSBOSS mobile app (stable WB-like snapshot)
 publish_to: "none"
-version: 1.0.6+15
+version: 1.0.8+17
 
 environment:
   sdk: ">=3.3.0 <4.0.0"
 
 dependencies:
   flutter:
+    sdk: flutter
+  flutter_localizations:
     sdk: flutter
   flutter_riverpod: ^2.5.1
   go_router: ^14.2.1
@@ -33,7 +35,8 @@ dependencies:
   firebase_messaging: ^14.7.10
   flutter_local_notifications: ^17.1.1
   flutter_widget_from_html: ^0.15.2
-  intl: ^0.19.0
+  intl: ^0.20.2
+  google_fonts: ^6.3.2
 
 dev_dependencies:
   flutter_test:
@@ -45,6 +48,7 @@ flutter:
   assets:
     - assets/app_config.json
     - assets/splash_screen.jpg
+    - assets/translations/
 
 flutter_native_splash:
   # This package generates native code to customize Flutter's default white native splash screen

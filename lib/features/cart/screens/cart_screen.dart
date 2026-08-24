@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/widgets/bottom_navigation_bar.dart';
+import '../../../core/l10n/locale_controller.dart';
 import '../controllers/cart_controller.dart';
 import '../models/cart_item.dart';
 import '../../catalog/models/product.dart';
@@ -14,6 +15,7 @@ class CartScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    ref.watch(localeControllerProvider);
     final localItems = ref.watch(cartProvider);
     final totalLocal = ref.read(cartProvider.notifier).total;
 
@@ -34,9 +36,9 @@ class CartScreen extends ConsumerWidget {
             ),
           ),
         ),
-        title: const Text(
-          'Корзина',
-          style: TextStyle(
+        title: Text(
+          context.tr('cart.title'),
+          style: const TextStyle(
             color: Colors.white,
             fontSize: 20,
             fontWeight: FontWeight.bold,
@@ -52,10 +54,10 @@ class CartScreen extends ConsumerWidget {
               // Показываем индикатор загрузки
               if (context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
+                  SnackBar(
                     content: Row(
                       children: [
-                        SizedBox(
+                        const SizedBox(
                           width: 20,
                           height: 20,
                           child: CircularProgressIndicator(
@@ -63,11 +65,11 @@ class CartScreen extends ConsumerWidget {
                             valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                           ),
                         ),
-                        SizedBox(width: 12),
-                        Text('Синхронизация корзины...'),
+                        const SizedBox(width: 12),
+                        Text(context.tr('cart.syncing')),
                       ],
                     ),
-                    duration: Duration(seconds: 2),
+                    duration: const Duration(seconds: 2),
                     backgroundColor: primaryColor,
                   ),
                 );
@@ -82,7 +84,10 @@ class CartScreen extends ConsumerWidget {
                 ScaffoldMessenger.of(context).hideCurrentSnackBar();
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text('Корзина синхронизирована. Товаров: ${currentItems.length}'),
+                    content: Text(context.tr(
+                      'cart.synced',
+                      namedArgs: {'count': '${currentItems.length}'},
+                    )),
                     backgroundColor: Colors.green,
                     duration: const Duration(seconds: 2),
                   ),
@@ -90,11 +95,12 @@ class CartScreen extends ConsumerWidget {
               }
             },
             icon: const Icon(Icons.sync, color: Colors.white),
-            tooltip: 'Синхронизировать с сервером',
+            tooltip: context.tr('cart.sync'),
           ),
         ],
       ),
       body: _LocalCartView(items: localItems, total: totalLocal),
+      extendBody: true,
       bottomNavigationBar: const BottomNavigationBarWidget(selectedIndex: 2),
     );
   }
@@ -107,6 +113,8 @@ class _LocalCartView extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    ref.watch(localeControllerProvider);
+    final currency = context.tr('common.currency');
     return items.isEmpty
         ? Center(
             child: Padding(
@@ -121,7 +129,7 @@ class _LocalCartView extends ConsumerWidget {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    'Ваша корзина пуста',
+                    context.tr('cart.empty'),
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
                       color: textPrimary,
                       fontWeight: FontWeight.bold,
@@ -129,7 +137,7 @@ class _LocalCartView extends ConsumerWidget {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Добавьте товары из каталога',
+                    context.tr('cart.empty_hint'),
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: textSecondary,
                     ),
@@ -216,7 +224,7 @@ class _LocalCartView extends ConsumerWidget {
                                   ],
                                   // Цена и количество
                                   Text(
-                                    '${it.product.price.toStringAsFixed(0)} с. × ${it.qty}',
+                                    '${it.product.price.toStringAsFixed(0)} $currency × ${it.qty}',
                                     style: const TextStyle(
                                       color: textSecondary,
                                     ),
@@ -271,19 +279,22 @@ class _LocalCartView extends ConsumerWidget {
                                 final confirm = await showDialog<bool>(
                                   context: context,
                                   builder: (context) => AlertDialog(
-                                    title: const Text('Удалить товар?'),
-                                    content: Text('Вы уверены, что хотите удалить "${it.product.name}" из корзины?'),
+                                    title: Text(context.tr('cart.remove_title')),
+                                    content: Text(context.tr(
+                                      'cart.remove_confirm',
+                                      namedArgs: {'name': it.product.name},
+                                    )),
                                     actions: [
                                       TextButton(
                                         onPressed: () => Navigator.of(context).pop(false),
-                                        child: const Text('Отмена'),
+                                        child: Text(context.tr('common.cancel')),
                                       ),
                                       TextButton(
                                         onPressed: () => Navigator.of(context).pop(true),
                                         style: TextButton.styleFrom(
                                           foregroundColor: Colors.red,
                                         ),
-                                        child: const Text('Удалить'),
+                                        child: Text(context.tr('common.delete')),
                                       ),
                                     ],
                                   ),
@@ -300,7 +311,10 @@ class _LocalCartView extends ConsumerWidget {
                                   if (context.mounted) {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       SnackBar(
-                                        content: Text('${it.product.name} удален из корзины'),
+                                        content: Text(context.tr(
+                                          'cart.removed',
+                                          namedArgs: {'name': it.product.name},
+                                        )),
                                         backgroundColor: Colors.green,
                                         duration: const Duration(seconds: 2),
                                       ),
@@ -348,15 +362,15 @@ class _LocalCartView extends ConsumerWidget {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text(
-                                'Итого:',
-                                style: TextStyle(
+                              Text(
+                                context.tr('cart.total'),
+                                style: const TextStyle(
                                   fontSize: 16,
                                   color: textSecondary,
                                 ),
                               ),
                               Text(
-                                '${total.toStringAsFixed(0)} с.',
+                                '${total.toStringAsFixed(0)} $currency',
                                 style: const TextStyle(
                                   fontSize: 24,
                                   fontWeight: FontWeight.bold,
@@ -393,9 +407,9 @@ class _LocalCartView extends ConsumerWidget {
                                 borderRadius: BorderRadius.circular(12),
                               ),
                             ),
-                            child: const Text(
-                              'Оформить заказ',
-                              style: TextStyle(
+                            child: Text(
+                              context.tr('cart.checkout'),
+                              style: const TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,
                               ),

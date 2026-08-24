@@ -1,20 +1,22 @@
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../services/notification_service.dart';
 import 'notification_details_screen.dart';
 import '../../../core/widgets/bottom_navigation_bar.dart';
+import '../../../core/l10n/locale_controller.dart';
 
-class NotificationsListScreen extends StatefulWidget {
+class NotificationsListScreen extends ConsumerStatefulWidget {
   const NotificationsListScreen({super.key});
 
   @override
-  State<NotificationsListScreen> createState() => _NotificationsListScreenState();
+  ConsumerState<NotificationsListScreen> createState() => _NotificationsListScreenState();
 }
 
-class _NotificationsListScreenState extends State<NotificationsListScreen> {
+class _NotificationsListScreenState extends ConsumerState<NotificationsListScreen> {
   final NotificationService _notificationService = NotificationService();
   List<Map<String, dynamic>> _notifications = [];
   bool _isLoading = true;
@@ -40,25 +42,25 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
   }
 
   String _formatDateTime(String? isoString) {
-    if (isoString == null) return 'Только что';
+    if (isoString == null) return context.tr('notifications.just_now');
     try {
       final dateTime = DateTime.parse(isoString);
       final now = DateTime.now();
       final difference = now.difference(dateTime);
 
       if (difference.inMinutes < 1) {
-        return 'Только что';
+        return context.tr('notifications.just_now');
       } else if (difference.inMinutes < 60) {
-        return '${difference.inMinutes} мин. назад';
+        return context.tr('notifications.minutes_ago', namedArgs: {'n': '${difference.inMinutes}'});
       } else if (difference.inHours < 24) {
-        return '${difference.inHours} ч. назад';
+        return context.tr('notifications.hours_ago', namedArgs: {'n': '${difference.inHours}'});
       } else if (difference.inDays < 7) {
-        return '${difference.inDays} дн. назад';
+        return context.tr('notifications.days_ago', namedArgs: {'n': '${difference.inDays}'});
       } else {
         return DateFormat('dd.MM.yyyy HH:mm').format(dateTime);
       }
     } catch (e) {
-      return 'Только что';
+      return context.tr('notifications.just_now');
     }
   }
 
@@ -105,11 +107,12 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
 
   @override
   Widget build(BuildContext context) {
+    ref.watch(localeControllerProvider);
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          'Уведомления',
-          style: TextStyle(
+        title: Text(
+          context.tr('notifications.title'),
+          style: const TextStyle(
             fontWeight: FontWeight.bold,
             fontSize: 20,
           ),
@@ -136,7 +139,7 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
                       ),
                       const SizedBox(height: 16),
                       Text(
-                        'Нет уведомлений',
+                        context.tr('notifications.empty'),
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w600,
@@ -145,7 +148,7 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'Здесь будут отображаться последние уведомления',
+                        context.tr('notifications.empty_hint'),
                         style: TextStyle(
                           fontSize: 14,
                           color: Colors.grey[500],
@@ -163,7 +166,7 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
                     itemCount: _notifications.length,
                     itemBuilder: (context, index) {
                       final notification = _notifications[index];
-                      final title = notification['title'] as String? ?? 'Уведомление';
+                      final title = notification['title'] as String? ?? context.tr('notifications.single');
                       final body = notification['body'] as String? ?? '';
                       final timestamp = notification['timestamp'] as String?;
                       final data = notification['data'] as Map<String, dynamic>? ?? {};
@@ -282,6 +285,7 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
                     },
                   ),
                 ),
+      extendBody: true,
       bottomNavigationBar: const BottomNavigationBarWidget(selectedIndex: 0),
     );
   }

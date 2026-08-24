@@ -50,6 +50,7 @@ class Validation
     public static function userProfile($request){
         $rules = [
             'name' => 'required',
+            'email' => 'nullable|email',
         ];
 
         return self::validationMessage($request, $rules);
@@ -223,13 +224,59 @@ class Validation
 
     public static function user_signup($request)
     {
+        // Новый поток: телефон + имя (пароль генерируется после OTP).
+        // Старый email+password оставляем как fallback, если phone не передан.
+        if ($request->filled('phone')) {
+            $rules = [
+                'name' => 'required|min:2',
+                'phone' => 'required|min:9|max:20',
+            ];
+        } else {
+            $rules = [
+                'name' => 'required',
+                'email' => 'required|email',
+                'password' => 'required|min:6'
+            ];
+        }
+
+        return self::validationMessage($request, $rules);
+    }
+
+    public static function phone_otp_send($request)
+    {
         $rules = [
-            'name' => 'required',
-            'email' => 'required|email',
-            'password' => 'required|min:6'
+            'phone' => 'required|min:9|max:20',
         ];
 
         return self::validationMessage($request, $rules);
+    }
+
+    public static function phone_otp_verify($request)
+    {
+        $rules = [
+            'phone' => 'required|min:9|max:20',
+            'code' => 'required|min:4|max:8',
+        ];
+
+        return self::validationMessage($request, $rules);
+    }
+
+    public static function phone_login($request, $lang = null)
+    {
+        // Вход по телефону + паролю (для веб после выдачи пароля через SMS).
+        if ($request->filled('phone')) {
+            $rules = [
+                'phone' => 'required|min:9|max:20',
+                'password' => 'required|min:6',
+            ];
+            $messages = [
+                'required' => __('lang.email_required', [], $lang),
+                'min' => __('lang.pass_min', [], $lang),
+            ];
+            return self::validationMessage($request, $rules, 'form', $messages);
+        }
+
+        return self::admin_login($request, $lang);
     }
 
     public static function order($request)

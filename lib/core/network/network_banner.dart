@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../l10n/locale_controller.dart';
 import 'network_status.dart';
 
 /// Ключ для глобальных SnackBar из Dio / сетевого монитора.
@@ -16,6 +17,7 @@ class NetworkStatusBanner extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final network = ref.watch(networkProvider);
+    ref.watch(localeControllerProvider);
 
     ref.listen<NetworkState>(networkProvider, (prev, next) {
       if (prev?.status == next.status) return;
@@ -24,7 +26,7 @@ class NetworkStatusBanner extends ConsumerWidget {
           next.status == NetworkStatus.online) {
         _showSnack(
           icon: Icons.wifi,
-          message: 'Соединение восстановлено',
+          message: ref.tr('network.restored'),
           color: const Color(0xFF2E7D32),
           seconds: 2,
         );
@@ -34,7 +36,7 @@ class NetworkStatusBanner extends ConsumerWidget {
           prev?.status != NetworkStatus.poor) {
         _showSnack(
           icon: Icons.signal_wifi_statusbar_connected_no_internet_4,
-          message: 'Плохое соединение. Проверьте интернет',
+          message: ref.tr('network.poor'),
           color: const Color(0xFFE65100),
           seconds: 3,
         );
@@ -68,10 +70,10 @@ class NetworkStatusBanner extends ConsumerWidget {
                             size: 20,
                           ),
                           const SizedBox(width: 10),
-                          const Expanded(
+                          Expanded(
                             child: Text(
-                              'Нет подключения к интернету',
-                              style: TextStyle(
+                              context.tr('network.offline'),
+                              style: const TextStyle(
                                 color: Colors.white,
                                 fontWeight: FontWeight.w700,
                                 fontSize: 13,
@@ -89,9 +91,9 @@ class NetworkStatusBanner extends ConsumerWidget {
                               minimumSize: Size.zero,
                               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                             ),
-                            child: const Text(
-                              'Обновить',
-                              style: TextStyle(
+                            child: Text(
+                              context.tr('network.refresh'),
+                              style: const TextStyle(
                                 fontWeight: FontWeight.w700,
                                 fontSize: 13,
                               ),

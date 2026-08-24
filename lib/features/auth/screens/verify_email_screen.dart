@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../repo/auth_api.dart';
 import '../../../core/config.dart';
+import '../../../core/l10n/locale_controller.dart';
 import '../../../core/result.dart';
 import '../../../theme.dart';
 import 'login_screen.dart';
@@ -51,9 +52,9 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
         if (response == 'LOGIN_REQUIRED') {
           // Показываем сообщение о необходимости входа
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Email подтвержден! Теперь войдите в систему.'),
-              duration: Duration(seconds: 3),
+            SnackBar(
+              content: Text(context.tr('auth.email_verified_login')),
+              duration: const Duration(seconds: 3),
             ),
           );
           
@@ -64,9 +65,9 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
           await AppConfig.saveBearerToken(response);
           
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Email подтвержден! Добро пожаловать!'),
-              duration: Duration(seconds: 2),
+            SnackBar(
+              content: Text(context.tr('auth.email_verified_login')),
+              duration: const Duration(seconds: 2),
             ),
           );
           
@@ -81,7 +82,7 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          _errorMessage = 'Произошла ошибка: $e';
+          _errorMessage = '${context.tr('common.error')}: $e';
         });
       }
     } finally {
@@ -108,7 +109,9 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
       if (result is Ok<String>) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Код подтверждения повторно отправлен на ${widget.email}'),
+            content: Text(
+              context.tr('auth.new_code_sent', namedArgs: {'email': widget.email}),
+            ),
             duration: const Duration(seconds: 3),
           ),
         );
@@ -121,7 +124,7 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          _errorMessage = 'Произошла ошибка при отправке кода: $e';
+          _errorMessage = '${context.tr('common.error')}: $e';
         });
       }
     } finally {
@@ -139,6 +142,7 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    ref.watch(localeControllerProvider);
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     
@@ -159,9 +163,9 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
             ),
           ),
         ),
-        title: const Text(
-          'Подтверждение Email',
-          style: TextStyle(
+        title: Text(
+          context.tr('auth.verify_email'),
+          style: const TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.bold,
             fontSize: 20,
@@ -206,7 +210,7 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
                   
                   // Заголовок
                   Text(
-                    'Подтвердите ваш email',
+                    context.tr('auth.verify_email_title'),
                     style: theme.textTheme.headlineSmall?.copyWith(
                       fontWeight: FontWeight.bold,
                       color: isDark ? Colors.white : Colors.grey[800],
@@ -218,7 +222,7 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
                   
                   // Описание
                   Text(
-                    'Мы отправили код подтверждения на',
+                    context.tr('auth.verify_email_hint'),
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: isDark ? Colors.grey[400] : Colors.grey[600],
                     ),
@@ -240,8 +244,8 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
                   TextFormField(
                     controller: _codeController,
                     decoration: InputDecoration(
-                      labelText: 'Код подтверждения',
-                      hintText: 'Введите код из письма',
+                      labelText: context.tr('auth.code_from_email'),
+                      hintText: context.tr('auth.enter_code'),
                       prefixIcon: const Icon(Icons.security, color: Color(0xFF9C27B0)),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -268,10 +272,10 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
                     ),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
-                        return 'Введите код подтверждения';
+                        return context.tr('auth.enter_code');
                       }
                       if (value.length < 4) {
-                        return 'Код должен содержать минимум 4 символа';
+                        return context.tr('auth.code_too_short');
                       }
                       return null;
                     },
@@ -358,9 +362,9 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
                                 valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                               ),
                             )
-                          : const Text(
-                              'Подтвердить',
-                              style: TextStyle(
+                          : Text(
+                              context.tr('auth.confirm'),
+                              style: const TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -377,9 +381,9 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
                       foregroundColor: const Color(0xFF9C27B0),
                       padding: const EdgeInsets.symmetric(vertical: 12),
                     ),
-                    child: const Text(
-                      'Отправить код повторно',
-                      style: TextStyle(
+                    child: Text(
+                      context.tr('auth.resend_code'),
+                      style: const TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
                       ),
@@ -393,7 +397,7 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
-                        'Уже подтвердили? ',
+                        '${context.tr('auth.have_account')} ',
                         style: TextStyle(
                           color: isDark ? Colors.grey[400] : Colors.grey[600],
                           fontSize: 14,
@@ -411,9 +415,9 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
                           foregroundColor: const Color(0xFF9C27B0),
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                         ),
-                        child: const Text(
-                          'Войти',
-                          style: TextStyle(
+                        child: Text(
+                          context.tr('auth.sign_in'),
+                          style: const TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.bold,
                           ),

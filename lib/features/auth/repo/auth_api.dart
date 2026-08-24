@@ -106,6 +106,138 @@ class AuthApi {
     }
   }
 
+  /// Нормализация телефона к 992XXXXXXXXX (клиентская).
+  static String? normalizePhone(String raw) {
+    var digits = raw.replaceAll(RegExp(r'\D'), '');
+    if (digits.startsWith('992') && digits.length > 12) {
+      digits = digits.substring(0, 12);
+    }
+    if (digits.length == 12 && digits.startsWith('992')) return digits;
+    if (digits.length == 10 && digits.startsWith('0')) {
+      return '992${digits.substring(1)}';
+    }
+    if (digits.length == 9) return '992$digits';
+    return null;
+  }
+
+  static bool isPlaceholderEmail(String? email) {
+    final e = email?.trim() ?? '';
+    return e.endsWith('@phone.ssboss.local');
+  }
+
+  static String formatPhoneDisplay(String raw) {
+    final n = normalizePhone(raw) ?? raw.replaceAll(RegExp(r'\D'), '');
+    if (n.length == 12 && n.startsWith('992')) {
+      return '+${n.substring(0, 3)} ${n.substring(3, 6)} ${n.substring(6, 9)} ${n.substring(9)}';
+    }
+    return n;
+  }
+
+  /// Телефон в профиле; фейковый email не показываем.
+  static String displayContact({String? phone, String? email}) {
+    final p = phone?.trim() ?? '';
+    if (p.isNotEmpty) return formatPhoneDisplay(p);
+    final e = email?.trim() ?? '';
+    if (isPlaceholderEmail(e)) {
+      return formatPhoneDisplay(e.split('@').first);
+    }
+    return e;
+  }
+
+  /// Отправка OTP на телефон. POST /user/otp/send
+  static Future<Result<Map<String, dynamic>>> sendOtp({
+    required String phone,
+    String? name,
+    bool requireName = false,
+  }) async {
+    try {
+      final normalized = normalizePhone(phone);
+      if (normalized == null) {
+        return const Err('Некорректный номер. Формат: 992XXXXXXXXX');
+      }
+
+      final res = await dio.post(
+        '/user/otp/send',
+        data: {
+          'phone': normalized,
+          if (name != null && name.trim().isNotEmpty) 'name': name.trim(),
+          'require_name': requireName,
+        },
+      );
+
+      final data = res.data;
+      if (_hasApiError(data)) {
+        return Err(_extractErrorMessage(data));
+      }
+
+      Map<String, dynamic> payload = {'phone': normalized};
+      if (data is Map && data['data'] is Map) {
+        payload = Map<String, dynamic>.from(data['data'] as Map);
+      }
+      payload['phone'] = payload['phone']?.toString() ?? normalized;
+      return Ok(payload);
+    } on DioException catch (e) {
+      return Err(_extractErrorMessage(e.response?.data).isNotEmpty
+          ? _extractErrorMessage(e.response?.data)
+          : 'Ошибка сети при отправке кода');
+    } catch (e) {
+      return Err('Ошибка отправки кода: $e');
+    }
+  }
+
+  /// Проверка OTP. POST /user/otp/verify → токен.
+  static Future<Result<Map<String, dynamic>>> verifyOtp({
+    required String phone,
+    required String code,
+    String? name,
+  }) async {
+    try {
+      final normalized = normalizePhone(phone);
+      if (normalized == null) {
+        return const Err('Некорректный номер телефона');
+      }
+
+      final res = await dio.post(
+        '/user/otp/verify',
+        data: {
+          'phone': normalized,
+          'code': code.trim(),
+          if (name != null && name.trim().isNotEmpty) 'name': name.trim(),
+        },
+      );
+
+      final data = res.data;
+      if (_hasApiError(data)) {
+        return Err(_extractErrorMessage(data));
+      }
+
+      String? token;
+      Map<String, dynamic> payload = {};
+      if (data is Map<String, dynamic>) {
+        token = data['token'] as String?;
+        if (token != null && token.isEmpty) token = null;
+        if (data['data'] is Map) {
+          payload = Map<String, dynamic>.from(data['data'] as Map);
+          final nested = payload['token'] as String?;
+          if (nested != null && nested.isNotEmpty) token = nested;
+        }
+      }
+
+      if (token == null || token.isEmpty) {
+        return const Err('Не удалось получить токен');
+      }
+
+      payload['token'] = token;
+      return Ok(payload);
+    } on DioException catch (e) {
+      return Err(_extractErrorMessage(e.response?.data).isNotEmpty
+          ? _extractErrorMessage(e.response?.data)
+          : 'Ошибка сети при проверке кода');
+    } catch (e) {
+      return Err('Ошибка проверки кода: $e');
+    }
+  }
+
   /// Получение данных профиля текущего пользователя
   /// Использует активный токен (мобильный или общий)
   static Future<Result<Map<String, dynamic>>> getProfile() async {
@@ -276,6 +408,116 @@ class AuthApi {
       print('[AUTH_API] Email verification generic exception: $e');
       return Err('Неизвестная ошибка при верификации: $e');
     }
+  }
+
+  /// Запрос кода сброса пароля (как на сайте: POST /user/forgot-password)
+  static Future<Result<String>> forgotPassword(String email) async {
+    try {
+      final res = await dio.post(
+        '/user/forgot-password',
+        data: {'email': email},
+      );
+
+      print('[AUTH_API] forgotPassword: Status ${res.statusCode}');
+      print('[AUTH_API] forgotPassword: Response: ${res.data}');
+
+      final data = res.data;
+      if (_hasApiError(data)) {
+        final message = _extractErrorMessage(data, email: email);
+        return Err(message.isNotEmpty
+            ? message
+            : 'Не удалось отправить код сброса пароля');
+      }
+
+      if (res.statusCode == 200 || res.statusCode == 201) {
+        return Ok(email);
+      }
+
+      final message = _extractErrorMessage(data, email: email);
+      return Err(message.isNotEmpty
+          ? message
+          : 'Ошибка сброса пароля (${res.statusCode})');
+    } on DioException catch (e) {
+      print('[AUTH_API] forgotPassword DioException: $e');
+      String message = 'Ошибка сети при сбросе пароля';
+      if (e.response != null) {
+        final extracted = _extractErrorMessage(e.response?.data, email: email);
+        if (extracted.isNotEmpty) message = extracted;
+      } else if (e.type == DioExceptionType.connectionTimeout ||
+          e.type == DioExceptionType.receiveTimeout ||
+          e.type == DioExceptionType.sendTimeout) {
+        message = 'Превышено время ожидания. Проверьте подключение к интернету';
+      } else if (e.type == DioExceptionType.connectionError) {
+        message = 'Ошибка подключения. Проверьте подключение к интернету';
+      }
+      return Err(message);
+    } catch (e) {
+      print('[AUTH_API] forgotPassword exception: $e');
+      return Err('Неизвестная ошибка: $e');
+    }
+  }
+
+  /// Установка нового пароля по коду из письма (POST /user/update-password)
+  static Future<Result<String>> updatePassword({
+    required String email,
+    required String code,
+    required String password,
+  }) async {
+    try {
+      final res = await dio.post(
+        '/user/update-password',
+        data: {
+          'email': email,
+          'code': code,
+          'password': password,
+        },
+      );
+
+      print('[AUTH_API] updatePassword: Status ${res.statusCode}');
+      print('[AUTH_API] updatePassword: Response: ${res.data}');
+
+      final data = res.data;
+      if (_hasApiError(data)) {
+        final message = _extractErrorMessage(data, email: email);
+        return Err(message.isNotEmpty ? message : 'Не удалось обновить пароль');
+      }
+
+      if (res.statusCode == 200 || res.statusCode == 201) {
+        return const Ok('PASSWORD_UPDATED');
+      }
+
+      final message = _extractErrorMessage(data, email: email);
+      return Err(message.isNotEmpty
+          ? message
+          : 'Ошибка обновления пароля (${res.statusCode})');
+    } on DioException catch (e) {
+      print('[AUTH_API] updatePassword DioException: $e');
+      String message = 'Ошибка сети при обновлении пароля';
+      if (e.response != null) {
+        final extracted = _extractErrorMessage(e.response?.data, email: email);
+        if (extracted.isNotEmpty) message = extracted;
+      }
+      return Err(message);
+    } catch (e) {
+      print('[AUTH_API] updatePassword exception: $e');
+      return Err('Неизвестная ошибка: $e');
+    }
+  }
+
+  /// Ответ API в формате { status: 201, message/data.form } считается ошибкой
+  static bool _hasApiError(dynamic data) {
+    if (data is! Map<String, dynamic>) return false;
+    final status = data['status'];
+    if (status == 201 || status == 400 || status == 401 || status == 422) {
+      return true;
+    }
+    if (data['data'] is Map) {
+      final dataMap = data['data'] as Map<String, dynamic>;
+      if (dataMap['form'] is List && (dataMap['form'] as List).isNotEmpty) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /// Повторная отправка кода подтверждения
@@ -622,6 +864,18 @@ class AuthApi {
         lowerMessage.contains('email not verified') ||
         lowerMessage.contains('user is not verified')) {
       return 'Email не подтвержден. Пожалуйста, подтвердите email перед входом';
+    }
+
+    // Сброс пароля
+    if (lowerMessage.contains('code_invalid') ||
+        lowerMessage.contains('invalid code') ||
+        lowerMessage.contains('code is invalid')) {
+      return 'Неверный код подтверждения';
+    }
+    if (lowerMessage.contains('not_exists') ||
+        lowerMessage.contains('no_email') ||
+        lowerMessage.contains('does not exist')) {
+      return 'Пользователь с таким email не найден';
     }
     
     // Ошибки валидации

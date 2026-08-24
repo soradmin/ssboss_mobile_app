@@ -5,22 +5,45 @@ class ProductAttribute {
   final String title;
   final List<ProductAttributeValue> values;
   ProductAttribute({required this.id, required this.title, required this.values});
+
   factory ProductAttribute.fromJson(Map<String, dynamic> j) => ProductAttribute(
     id: (j['id'] ?? 0) as int,
-    title: (j['title'] ?? '').toString(),
-    values: (j['values'] as List?)?.map((v) => ProductAttributeValue.fromJson(v)).toList() ?? [],
+    title: _attrText(j['title'] ?? j['name'] ?? j['slug']),
+    values: (j['values'] as List?)
+            ?.map((v) => ProductAttributeValue.fromJson(
+                  v is Map<String, dynamic>
+                      ? v
+                      : Map<String, dynamic>.from(v as Map),
+                ))
+            .toList() ??
+        [],
   );
 }
+
 class ProductAttributeValue {
-  final int id; // inventory_id
-  final int attributeValueId; // attribute_value_id - это то, что нужно для выбора атрибутов
+  final int id; // inventory_id (если пришёл из join)
+  final int attributeValueId; // attribute_value_id — для выбора в корзине
   final String title;
-  ProductAttributeValue({required this.id, required this.attributeValueId, required this.title});
-  factory ProductAttributeValue.fromJson(Map<String, dynamic> j) => ProductAttributeValue(
-    id: (j['id'] ?? j['inventory_id'] ?? 0) as int,
-    attributeValueId: (j['attribute_value_id'] ?? j['id'] ?? 0) as int, // Используем attribute_value_id если есть, иначе id
-    title: j['title']?.toString() ?? '',
-  );
+  ProductAttributeValue({
+    required this.id,
+    required this.attributeValueId,
+    required this.title,
+  });
+
+  factory ProductAttributeValue.fromJson(Map<String, dynamic> j) {
+    final rawTitle = _attrText(j['title'] ?? j['name'] ?? j['value'] ?? j['slug']);
+    return ProductAttributeValue(
+      id: (j['inventory_id'] ?? j['id'] ?? 0) as int,
+      attributeValueId: (j['attribute_value_id'] ?? j['id'] ?? 0) as int,
+      title: rawTitle,
+    );
+  }
+}
+
+String _attrText(dynamic raw) {
+  final s = (raw ?? '').toString().trim();
+  if (s.isEmpty || s == 'null') return '';
+  return s;
 }
 
 class Product {
@@ -35,6 +58,7 @@ class Product {
   final String? sellerName; // Название продавца/магазина
   final double? sellerRating; // Рейтинг продавца
   final String? storeSlug; // Slug магазина для навигации
+  final String? sellerLogo;
   final String? description; // Описание товара
   final List<String> descriptionImages; // Изображения в описании товара
   final List<ProductImage> images; // Список всех изображений
@@ -59,6 +83,7 @@ class Product {
     this.sellerName,
     this.sellerRating,
     this.storeSlug,
+    this.sellerLogo,
     this.description,
     this.descriptionImages = const [], // По умолчанию пустой список
     this.images = const [], // По умолчанию пустой список
@@ -79,13 +104,17 @@ class Product {
     
     // Старая логика для основных полей
     final int id = (j['id'] ?? 0) as int;
-    final String name = (j['name'] ?? j['title'] ?? '').toString();
+    // API часто отдаёт title=null, а человекочитаемое имя лежит в slug.
+    String name = (j['name'] ?? j['title'] ?? '').toString().trim();
+    if (name.isEmpty || name == 'null') {
+      name = (j['slug'] ?? '').toString().trim();
+    }
     final String image = (j['image'] ?? j['thumbnail'] ?? j['thumb'] ?? '').toString();
     final prices = resolveProductPriceFields(j);
     final double price = prices.price;
     final double? oldPrice = prices.oldPrice;
     final double rating = _toDouble(j['rating'] ?? 0);
-    final int reviewCount = (j['review_count'] ?? j['reviews_count'] ?? 0) as int;
+    final int reviewCount = _toInt(j['review_count'] ?? j['reviews_count'] ?? j['total_reviews'] ?? 0);
     final String? badge = j['badge']?.toString();
     // Парсим название продавца/магазина из разных полей
     String? sellerName = j['seller_name'] ?? j['shop_name'] ?? j['seller'] ?? j['shop']?.toString();
@@ -122,15 +151,36 @@ class Product {
         storeSlug = shopMap['slug']?.toString();
       }
     }
-    // Ищем описание в различных возможных полях
+    String? sellerLogo;
+    if (j['store'] is Map) {
+      final storeMap = j['store'] as Map;
+      sellerLogo = (storeMap['image'] ?? storeMap['logo'] ?? storeMap['thumb'] ?? storeMap['photo'])
+          ?.toString();
+      if (sellerLogo != null && (sellerLogo.isEmpty || sellerLogo == 'null')) {
+        sellerLogo = null;
+      }
+    }
+
+    // Ищем описание: на бэкенде это description (HTML) и overview.
     String? description;
-    for (final key in ['description', 'content', 'details', 'product_description', 'long_description', 'summary', 'about']) {
-      if (j[key] != null && j[key].toString().trim().isNotEmpty) {
-        description = j[key].toString().trim();
-        print('[DEBUG] Found description in field "$key": $description');
+    for (final key in [
+      'description',
+      'overview',
+      'content',
+      'details',
+      'product_description',
+      'long_description',
+      'summary',
+      'about',
+    ]) {
+      final extracted = extractLocalizedText(j[key]);
+      if (extracted != null && extracted.isNotEmpty) {
+        description = extracted;
+        print('[DEBUG] Found description in field "$key"');
         break;
       }
     }
+    final descriptionImages = extractHtmlImageUrls(description);
 
     // Новая логика для изображений и видео
     List<ProductImage> images = [];
@@ -221,8 +271,9 @@ class Product {
       sellerName: sellerName,
       sellerRating: sellerRating,
       storeSlug: storeSlug,
+      sellerLogo: sellerLogo,
       description: description,
-      descriptionImages: const [], // Будет заполнено позже через API
+      descriptionImages: descriptionImages,
       images: images,
       videos: videos,
       attributes: attributes,
@@ -242,6 +293,7 @@ class Product {
       'sellerName': sellerName,
       'sellerRating': sellerRating,
       'storeSlug': storeSlug,
+      'sellerLogo': sellerLogo,
       'description': description,
       'descriptionImages': descriptionImages,
       'images': images.map((img) => img.toJson()).toList(),
@@ -260,9 +312,99 @@ class Product {
           .toList(),
     };
   }
+
+  Product copyWith({
+    int? id,
+    String? name,
+    String? image,
+    double? price,
+    double? oldPrice,
+    double? rating,
+    int? reviewCount,
+    String? badge,
+    String? sellerName,
+    double? sellerRating,
+    String? storeSlug,
+    String? sellerLogo,
+    String? description,
+    List<String>? descriptionImages,
+    List<ProductImage>? images,
+    List<ProductVideo>? videos,
+    List<ProductAttribute>? attributes,
+  }) {
+    return Product(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      image: image ?? this.image,
+      price: price ?? this.price,
+      oldPrice: oldPrice ?? this.oldPrice,
+      rating: rating ?? this.rating,
+      reviewCount: reviewCount ?? this.reviewCount,
+      badge: badge ?? this.badge,
+      sellerName: sellerName ?? this.sellerName,
+      sellerRating: sellerRating ?? this.sellerRating,
+      storeSlug: storeSlug ?? this.storeSlug,
+      sellerLogo: sellerLogo ?? this.sellerLogo,
+      description: description ?? this.description,
+      descriptionImages: descriptionImages ?? this.descriptionImages,
+      images: images ?? this.images,
+      videos: videos ?? this.videos,
+      attributes: attributes ?? this.attributes,
+    );
+  }
+}
+
+/// Текст из HTML / вложенных {ru, tg, en}.
+String? extractLocalizedText(dynamic raw) {
+  if (raw == null) return null;
+  if (raw is Map) {
+    for (final key in ['ru', 'tg', 'en', 'description', 'text', 'content', 'value']) {
+      final inner = extractLocalizedText(raw[key]);
+      if (inner != null && inner.isNotEmpty) return inner;
+    }
+    for (final value in raw.values) {
+      final inner = extractLocalizedText(value);
+      if (inner != null && inner.isNotEmpty) return inner;
+    }
+    return null;
+  }
+  if (raw is List) {
+    for (final item in raw) {
+      final inner = extractLocalizedText(item);
+      if (inner != null && inner.isNotEmpty) return inner;
+    }
+    return null;
+  }
+  final s = raw.toString().trim();
+  if (s.isEmpty || s == 'null') return null;
+  return s;
+}
+
+List<String> extractHtmlImageUrls(String? html) {
+  if (html == null || html.isEmpty) return const [];
+  final urls = <String>[];
+  final imgRegex = RegExp(
+    '<img[^>]+src=["\']([^"\']+)["\'][^>]*>',
+    caseSensitive: false,
+  );
+  for (final match in imgRegex.allMatches(html)) {
+    final imageUrl = match.group(1);
+    if (imageUrl == null || imageUrl.isEmpty) continue;
+    final fullUrl = imageUrl.startsWith('http')
+        ? imageUrl
+        : 'https://ssboss.shop${imageUrl.startsWith('/') ? '' : '/'}$imageUrl';
+    urls.add(fullUrl);
+  }
+  return urls;
 }
 
 double _toDouble(dynamic v) => v is num ? v.toDouble() : double.tryParse('$v') ?? 0.0;
+
+int _toInt(dynamic v) {
+  if (v is int) return v;
+  if (v is num) return v.toInt();
+  return int.tryParse('$v') ?? 0;
+}
 
 double? _toDoubleOrNull(dynamic v) {
   if (v == null) return null;

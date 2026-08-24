@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/config.dart';
+import '../../core/l10n/locale_controller.dart';
 import '../../app_router.dart';
 
 /// Данные о актуальной версии с сервера (`/app-version.json`).
@@ -42,9 +43,7 @@ class AppVersionInfo {
       forceUpdate: json['force_update'] == true,
       androidStoreUrl: (json['android_store_url'] ?? '').toString(),
       iosStoreUrl: (json['ios_store_url'] ?? '').toString(),
-      message: (json['message'] ??
-              'Доступна новая версия приложения. Обновите его в магазине.')
-          .toString(),
+      message: (json['message'] ?? '').toString(),
     );
   }
 
@@ -67,6 +66,7 @@ class AppUpdateService {
   static final AppUpdateService instance = AppUpdateService._();
 
   static const _prefsSkipKey = 'app_update_skipped';
+  static const _androidPackageId = 'com.ssboss.ssbossmp';
   bool _checkedThisSession = false;
 
   /// Сравнение semver: `a < b` → отрицательное.
@@ -99,6 +99,7 @@ class AppUpdateService {
         connectTimeout: const Duration(seconds: 8),
         receiveTimeout: const Duration(seconds: 8),
         headers: {'Accept': 'application/json'},
+        validateStatus: (code) => code != null && code >= 200 && code < 300,
       ),
     );
 
@@ -131,6 +132,40 @@ class AppUpdateService {
   Future<void> skipVersion(String latestVersion, int latestBuild) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_prefsSkipKey, '$latestVersion+$latestBuild');
+  }
+
+  /// Открыть магазин приложений (с запасными URL).
+  Future<bool> openStore(AppVersionInfo remote) async {
+    final candidates = <Uri>[];
+
+    if (!kIsWeb && Platform.isAndroid) {
+      candidates.add(Uri.parse('market://details?id=$_androidPackageId'));
+      final https = remote.androidStoreUrl.isNotEmpty
+          ? remote.androidStoreUrl
+          : 'https://play.google.com/store/apps/details?id=$_androidPackageId';
+      candidates.add(Uri.parse(https));
+    } else if (!kIsWeb && Platform.isIOS) {
+      if (remote.iosStoreUrl.isNotEmpty) {
+        candidates.add(Uri.parse(remote.iosStoreUrl));
+      }
+      candidates.add(Uri.parse('https://apps.apple.com/app/id6759483309'));
+      candidates.add(Uri.parse('https://apps.apple.com/search?term=SSBOSS'));
+    } else if (remote.storeUrl.isNotEmpty) {
+      candidates.add(Uri.parse(remote.storeUrl));
+    }
+
+    for (final uri in candidates) {
+      try {
+        final launched = await launchUrl(
+          uri,
+          mode: LaunchMode.externalApplication,
+        );
+        if (launched) return true;
+      } catch (e) {
+        debugPrint('[AppUpdate] launch $uri failed: $e');
+      }
+    }
+    return false;
   }
 
   /// Проверить обновление и показать диалог при необходимости.
@@ -168,8 +203,7 @@ class AppUpdateService {
         return;
       }
 
-      final dialogContext =
-          rootNavigatorKey.currentContext ?? context;
+      final dialogContext = rootNavigatorKey.currentContext ?? context;
       if (dialogContext == null || !dialogContext.mounted) return;
 
       await _showDialog(
@@ -191,89 +225,145 @@ class AppUpdateService {
     required int localBuild,
     required bool force,
   }) {
-    final storeName = (!kIsWeb && Platform.isIOS) ? 'App Store' : 'Google Play';
-
     return showDialog<void>(
       context: context,
       barrierDismissible: !force,
       builder: (ctx) {
         return PopScope(
           canPop: !force,
-          child: AlertDialog(
+          child: Dialog(
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
+              borderRadius: BorderRadius.circular(24),
             ),
-            title: Row(
-              children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF9C27B0).withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(12),
+            insetPadding: const EdgeInsets.symmetric(horizontal: 28),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 64,
+                    height: 64,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF9C27B0).withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    child: const Icon(
+                      Icons.system_update_rounded,
+                      color: Color(0xFF9C27B0),
+                      size: 34,
+                    ),
                   ),
-                  child: const Icon(
-                    Icons.system_update_rounded,
-                    color: Color(0xFF9C27B0),
+                  const SizedBox(height: 16),
+                  Text(
+                    ctx.tr('update.title'),
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF1A1A1A),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                const Expanded(
-                  child: Text(
-                    'Доступно обновление',
-                    style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
+                  const SizedBox(height: 10),
+                  Text(
+                    remote.message.isNotEmpty
+                        ? remote.message
+                        : ctx.tr('update.message'),
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 15,
+                      height: 1.4,
+                      color: Colors.grey[700],
+                    ),
                   ),
-                ),
-              ],
-            ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  remote.message,
-                  style: const TextStyle(height: 1.4, fontSize: 14),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  'Ваша версия: $localVersion ($localBuild)\n'
-                  'Новая версия: ${remote.latestVersion} (${remote.latestBuild})\n'
-                  'Обновите приложение в $storeName.',
-                  style: TextStyle(
-                    height: 1.4,
-                    fontSize: 13,
-                    color: Colors.grey[700],
+                  const SizedBox(height: 8),
+                  Text(
+                    ctx.tr(
+                      'update.your_version',
+                      namedArgs: {
+                        'local': '$localVersion ($localBuild)',
+                        'remote':
+                            '${remote.latestVersion} (${remote.latestBuild})',
+                      },
+                    ),
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 13,
+                      height: 1.35,
+                      color: Colors.grey[500],
+                    ),
                   ),
-                ),
-              ],
-            ),
-            actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            actions: [
-              if (!force)
-                TextButton(
-                  onPressed: () async {
-                    await skipVersion(remote.latestVersion, remote.latestBuild);
-                    if (ctx.mounted) Navigator.of(ctx).pop();
-                  },
-                  child: const Text('Позже'),
-                ),
-              FilledButton(
-                style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFF9C27B0),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                  const SizedBox(height: 22),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: FilledButton(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFF9C27B0),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      onPressed: () async {
+                        final ok = await openStore(remote);
+                        if (!ctx.mounted) return;
+                        if (!ok) {
+                          ScaffoldMessenger.of(ctx).showSnackBar(
+                            SnackBar(
+                              content: Text(ctx.tr('update.store_failed')),
+                            ),
+                          );
+                        }
+                        // Даже при force не блокируем пользователя навсегда,
+                        // если магазин не открылся — диалог можно закрыть.
+                        if ((!force || !ok) && ctx.mounted) {
+                          Navigator.of(ctx).pop();
+                        }
+                      },
+                      child: Text(
+                        ctx.tr('update.update'),
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
                   ),
-                ),
-                onPressed: () async {
-                  final url = Uri.tryParse(remote.storeUrl);
-                  if (url != null && await canLaunchUrl(url)) {
-                    await launchUrl(url, mode: LaunchMode.externalApplication);
-                  }
-                  if (!force && ctx.mounted) Navigator.of(ctx).pop();
-                },
-                child: const Text('Обновить'),
+                  // Как на Авито: всегда даём мягкий отказ, кроме жёсткого force.
+                  // Даже при force показываем «Нет, спасибо», чтобы не запирать UI,
+                  // если кнопка «Обновить» не открыла магазин.
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: FilledButton(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFFF3E8FF),
+                        foregroundColor: const Color(0xFF7B1FA2),
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      onPressed: () async {
+                        await skipVersion(
+                          remote.latestVersion,
+                          remote.latestBuild,
+                        );
+                        if (ctx.mounted) Navigator.of(ctx).pop();
+                      },
+                      child: Text(
+                        ctx.tr('update.no_thanks'),
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         );
       },

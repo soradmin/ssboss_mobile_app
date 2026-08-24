@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/widgets/bottom_navigation_bar.dart';
+import '../../../core/l10n/locale_controller.dart';
 import '../../../theme.dart';
 import '../models/payment_method.dart';
 import '../repo/payment_api.dart';
@@ -72,7 +73,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
         });
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Ошибка загрузки методов оплаты: $error')),
+            SnackBar(content: Text('${context.tr('common.error')}: $error')),
           );
         }
       },
@@ -82,7 +83,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
   Future<void> _createOrder() async {
     if (_selectedMethod == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Выберите метод оплаты')),
+        SnackBar(content: Text(context.tr('checkout.select_payment'))),
       );
       return;
     }
@@ -169,10 +170,10 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                   
                   // Показываем сообщение об успехе
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Заказ успешно создан и подтвержден!'),
+                    SnackBar(
+                      content: Text(context.tr('checkout.order_success')),
                       backgroundColor: Colors.green,
-                      duration: Duration(seconds: 3),
+                      duration: const Duration(seconds: 3),
                     ),
                   );
                   
@@ -189,7 +190,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                   // Показываем предупреждение, но заказ создан
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text('Заказ создан, но не удалось подтвердить на сервере: $error'),
+                      content: Text('${context.tr('checkout.order_placed')}: $error'),
                       backgroundColor: Colors.orange,
                       duration: const Duration(seconds: 5),
                     ),
@@ -208,7 +209,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
               // Показываем предупреждение
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text('Заказ создан, но произошла ошибка при подтверждении: $e'),
+                  content: Text('${context.tr('checkout.order_placed')}: $e'),
                   backgroundColor: Colors.orange,
                   duration: const Duration(seconds: 5),
                 ),
@@ -220,8 +221,8 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
           } else {
             print('[DEBUG] PaymentScreen: orderId не найден, переходим на главную');
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Заказ создан, но не удалось получить номер заказа'),
+              SnackBar(
+                content: Text(context.tr('checkout.order_placed')),
                 backgroundColor: Colors.orange,
               ),
             );
@@ -233,7 +234,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Ошибка создания заказа: $error'),
+              content: Text('${context.tr('common.error')}: $error'),
               backgroundColor: Colors.red,
             ),
           );
@@ -312,7 +313,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Сводка заказа',
+              context.tr('checkout.order_summary'),
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.bold,
               ),
@@ -321,7 +322,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('${widget.addressType == 'pickup' ? 'Пункт выдачи' : 'Адрес доставки'}:'),
+                Text('${widget.addressType == 'pickup' ? context.tr('checkout.pickup') : context.tr('orders.delivery_address')}:'),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
@@ -349,8 +350,8 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('Товаров: ${cartItems.fold(0, (sum, item) => sum + item.qty)}'),
-                Text('${cartItems.fold(0.0, (sum, item) => sum + item.subtotal).toStringAsFixed(2)} с.'),
+                Text('${context.tr('checkout.items')} ${cartItems.fold(0, (sum, item) => sum + item.qty)}'),
+                Text('${cartItems.fold(0.0, (sum, item) => sum + item.subtotal).toStringAsFixed(2)} ${context.tr('common.currency')}'),
               ],
             ),
             const Divider(),
@@ -358,13 +359,13 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'Итого:',
+                  context.tr('cart.total'),
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
                 ),
                 Text(
-                  '${cartItems.fold(0.0, (sum, item) => sum + item.subtotal).toStringAsFixed(2)} с.',
+                  '${cartItems.fold(0.0, (sum, item) => sum + item.subtotal).toStringAsFixed(2)} ${context.tr('common.currency')}',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.bold,
                     color: primaryColor,
@@ -385,7 +386,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Способ оплаты',
+            context.tr('checkout.payment_method'),
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.bold,
             ),
@@ -424,6 +425,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
 
   @override
   Widget build(BuildContext context) {
+    ref.watch(localeControllerProvider);
     return Scaffold(
       backgroundColor: backgroundColor,
       appBar: AppBar(
@@ -441,9 +443,9 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
             ),
           ),
         ),
-        title: const Text(
-          'Оплата',
-          style: TextStyle(
+        title: Text(
+          context.tr('checkout.payment'),
+          style: const TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.bold,
           ),
@@ -454,6 +456,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
         ),
       ),
       body: _buildBody(),
+      extendBody: true,
       bottomNavigationBar: const BottomNavigationBarWidget(selectedIndex: 2),
     );
   }
@@ -477,7 +480,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
             ),
             const SizedBox(height: 16),
             Text(
-              'Ошибка загрузки',
+              context.tr('catalog.load_error'),
               style: theme.textTheme.titleLarge,
             ),
             const SizedBox(height: 8),
@@ -513,7 +516,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-                child: const Text('Повторить'),
+                child: Text(context.tr('common.retry')),
               ),
             ),
           ],
@@ -587,9 +590,9 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                             valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                           ),
                         )
-                      : const Text(
-                          'Оформить заказ',
-                          style: TextStyle(
+                      : Text(
+                          context.tr('cart.checkout'),
+                          style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
                           ),
