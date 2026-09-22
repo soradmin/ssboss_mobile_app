@@ -24,18 +24,31 @@ class ProductAttributeValue {
   final int id; // inventory_id (если пришёл из join)
   final int attributeValueId; // attribute_value_id — для выбора в корзине
   final String title;
+  /// Цена конкретной позиции склада. `null`/`0` = базовая цена товара.
+  final double? price;
+
   ProductAttributeValue({
     required this.id,
     required this.attributeValueId,
     required this.title,
+    this.price,
   });
 
   factory ProductAttributeValue.fromJson(Map<String, dynamic> j) {
     final rawTitle = _attrText(j['title'] ?? j['name'] ?? j['value'] ?? j['slug']);
+    final rawPrice = j['price'];
+    double? price;
+    if (rawPrice != null) {
+      price = rawPrice is num
+          ? rawPrice.toDouble()
+          : double.tryParse(rawPrice.toString());
+      if (price != null && price <= 0) price = null;
+    }
     return ProductAttributeValue(
       id: (j['inventory_id'] ?? j['id'] ?? 0) as int,
       attributeValueId: (j['attribute_value_id'] ?? j['id'] ?? 0) as int,
       title: rawTitle,
+      price: price,
     );
   }
 }
@@ -305,12 +318,31 @@ class Product {
                 'values': a.values
                     .map((v) => {
                           'id': v.id,
+                          'attribute_value_id': v.attributeValueId,
                           'title': v.title,
+                          if (v.price != null) 'price': v.price,
                         })
                     .toList(),
               })
           .toList(),
     };
+  }
+
+  /// Цена с учётом выбранных вариантов (inventory.price > 0).
+  /// Если у варианта цена 0/null — базовая [price] товара (как на сайте).
+  double priceForSelectedAttributes(Map<int, int> selected) {
+    double? variantPrice;
+    for (final attr in attributes) {
+      final valueId = selected[attr.id];
+      if (valueId == null || valueId <= 0) continue;
+      for (final v in attr.values) {
+        if (v.attributeValueId == valueId && v.price != null && v.price! > 0) {
+          variantPrice = v.price;
+          break;
+        }
+      }
+    }
+    return variantPrice ?? price;
   }
 
   Product copyWith({

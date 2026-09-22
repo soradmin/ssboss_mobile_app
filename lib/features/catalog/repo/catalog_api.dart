@@ -921,6 +921,7 @@ class CatalogApi {
             title: v.title.trim().isNotEmpty
                 ? v.title
                 : (fv?.title ?? ''),
+            price: v.price ?? fv?.price,
           );
         }).toList(),
       );

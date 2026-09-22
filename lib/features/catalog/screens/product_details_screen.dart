@@ -486,15 +486,15 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
     final product = _currentProduct ?? widget.p;
     if (!_ensureAttributesSelected(product)) return;
 
-    ref.read(cartProvider.notifier).addToCart(
-          widget.p,
-          1,
-          selectedAttributes: _selectedAttributes,
-        );
+    final unitPrice = product.priceForSelectedAttributes(_selectedAttributes);
+    final productForCart =
+        unitPrice == product.price ? product : product.copyWith(price: unitPrice);
+
+    // Только sync-метод: внутри уже вызывается локальный addToCart.
     ref.read(cartProvider.notifier).addToCartWithSync(
-          widget.p,
+          productForCart,
           1,
-          selectedAttributes: _selectedAttributes,
+          selectedAttributes: Map<int, int>.from(_selectedAttributes),
         );
 
     if (!mounted) return;
@@ -731,7 +731,9 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
       if (badge != null && badge.isNotEmpty) return badge.toUpperCase();
       return 'SSBOSS';
     }();
-    final priceText = '${product.price.toStringAsFixed(0)} с.';
+    final displayPrice =
+        product.priceForSelectedAttributes(_selectedAttributes);
+    final priceText = '${displayPrice.toStringAsFixed(0)} с.';
 
     return Scaffold(
       backgroundColor: ProductDetailMono.white,
