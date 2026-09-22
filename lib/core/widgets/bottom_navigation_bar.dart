@@ -7,307 +7,33 @@ import 'package:go_router/go_router.dart';
 import '../../features/catalog/screens/home_screen.dart';
 import '../l10n/locale_controller.dart';
 
-/// Общая позиция bubble между экранами (каждый таб — свой Scaffold).
-class _NavBubbleMemory {
-  static int index = 0;
-}
-
-/// Плавающее «стеклянное» нижнее меню: bubble охватывает иконку + подпись.
-class BottomNavigationBarWidget extends ConsumerStatefulWidget {
+/// Плавающее нижнее меню: frosted glass + скользящий пузырь (Telegram-стиль).
+class BottomNavigationBarWidget extends ConsumerWidget {
   final int selectedIndex;
+  final ValueChanged<int>? onTabSelected;
 
   const BottomNavigationBarWidget({
     super.key,
     this.selectedIndex = 0,
+    this.onTabSelected,
   });
 
-  static const _iconColor = Color(0xFF1A1A1A);
-  static const _mutedColor = Color(0xFF5C5C5C);
-  static const _itemCount = 5;
-
-  static const double barHeight = 72;
-  static const double bubbleHeight = 60;
-  /// Горизонтальные поля bubble относительно ширины ячейки.
-  static const double bubbleHInset = 4;
+  static const double barHeight = 64;
+  static const double _hPad = 16;
+  static const double _topPad = 6;
+  static const double _bottomExtra = 12;
 
   /// Высота слота меню + системная панель (для отступа контента при extendBody).
   static double occupiedHeight(BuildContext context) {
     final bottomInset = MediaQuery.viewPaddingOf(context).bottom;
-    return barHeight + 6 + 12 + bottomInset;
+    return barHeight + _topPad + _bottomExtra + bottomInset;
   }
 
-  @override
-  ConsumerState<BottomNavigationBarWidget> createState() =>
-      _BottomNavigationBarWidgetState();
-}
-
-class _BottomNavigationBarWidgetState
-    extends ConsumerState<BottomNavigationBarWidget>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-  late Animation<double> _indexAnim;
-  late int _fromIndex;
-  late int _toIndex;
-
-  @override
-  void initState() {
-    super.initState();
-    _fromIndex = _NavBubbleMemory.index;
-    _toIndex = widget.selectedIndex;
-    _NavBubbleMemory.index = widget.selectedIndex;
-
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 480),
-    );
-    _indexAnim = Tween<double>(
-      begin: _fromIndex.toDouble(),
-      end: _toIndex.toDouble(),
-    ).animate(CurvedAnimation(
-      parent: _controller,
-      curve: const Cubic(0.34, 1.3, 0.64, 1),
-    ));
-
-    if (_fromIndex != _toIndex) {
-      _controller.forward(from: 0);
-    } else {
-      _controller.value = 1;
+  void _go(BuildContext context, int index) {
+    if (onTabSelected != null) {
+      onTabSelected!(index);
+      return;
     }
-  }
-
-  @override
-  void didUpdateWidget(covariant BottomNavigationBarWidget oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.selectedIndex != widget.selectedIndex) {
-      _animateTo(widget.selectedIndex);
-    }
-  }
-
-  void _animateTo(int next) {
-    _fromIndex = _indexAnim.value.round().clamp(0, 4);
-    _toIndex = next;
-    _NavBubbleMemory.index = next;
-    _indexAnim = Tween<double>(
-      begin: _fromIndex.toDouble(),
-      end: _toIndex.toDouble(),
-    ).animate(CurvedAnimation(
-      parent: _controller,
-      curve: const Cubic(0.34, 1.3, 0.64, 1),
-    ));
-    _controller.forward(from: 0);
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    ref.watch(localeControllerProvider);
-    // viewPadding — системная панель (кнопки / gesture), не сбрасывается клавиатурой.
-    final bottomInset = MediaQuery.viewPaddingOf(context).bottom;
-    // Раньше при inset > 0 добавляли только 8px и меню уезжало под кнопки навигации.
-    final bottomPad = bottomInset + 12;
-
-    return Padding(
-      padding: EdgeInsets.fromLTRB(16, 6, 16, bottomPad),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final barWidth = constraints.maxWidth;
-          final itemWidth = barWidth / BottomNavigationBarWidget._itemCount;
-          const inset = BottomNavigationBarWidget.bubbleHInset;
-          final bubbleWidth = itemWidth - inset * 2;
-          const bubbleTop =
-              (BottomNavigationBarWidget.barHeight -
-                  BottomNavigationBarWidget.bubbleHeight) /
-              2;
-
-          return Stack(
-            clipBehavior: Clip.none,
-            children: [
-              DecoratedBox(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(28),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.12),
-                      blurRadius: 28,
-                      offset: const Offset(0, 10),
-                    ),
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.04),
-                      blurRadius: 6,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(28),
-                  child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
-                    child: ColoredBox(
-                      color: const Color(0xFFF5F5F5).withValues(alpha: 0.72),
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(28),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.55),
-                            width: 0.9,
-                          ),
-                        ),
-                        child: const SizedBox(
-                          height: BottomNavigationBarWidget.barHeight,
-                          width: double.infinity,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              // Bubble: иконка + название раздела
-              AnimatedBuilder(
-                animation: _indexAnim,
-                builder: (context, _) {
-                  final idx = _indexAnim.value;
-                  final left = idx * itemWidth + inset;
-                  return Positioned(
-                    left: left,
-                    top: bubbleTop,
-                    width: bubbleWidth,
-                    height: BottomNavigationBarWidget.bubbleHeight,
-                    child: const _GlassBubble(),
-                  );
-                },
-              ),
-              SizedBox(
-                height: BottomNavigationBarWidget.barHeight,
-                child: Material(
-                  type: MaterialType.transparency,
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: _NavItem(
-                          icon: Icons.home_outlined,
-                          selectedIcon: Icons.home_rounded,
-                          label: context.tr('nav.home'),
-                          index: 0,
-                          selected: widget.selectedIndex == 0,
-                        ),
-                      ),
-                      Expanded(
-                        child: _NavItem(
-                          icon: Icons.grid_view_outlined,
-                          selectedIcon: Icons.grid_view_rounded,
-                          label: context.tr('nav.catalog'),
-                          index: 1,
-                          selected: widget.selectedIndex == 1,
-                        ),
-                      ),
-                      Expanded(
-                        child: _NavItem(
-                          icon: Icons.shopping_cart_outlined,
-                          selectedIcon: Icons.shopping_cart_rounded,
-                          label: context.tr('nav.cart'),
-                          index: 2,
-                          selected: widget.selectedIndex == 2,
-                          badgeCount: ref.watch(cartTotalQuantityProvider),
-                        ),
-                      ),
-                      Expanded(
-                        child: _NavItem(
-                          icon: Icons.favorite_border_rounded,
-                          selectedIcon: Icons.favorite_rounded,
-                          label: context.tr('nav.favorites'),
-                          index: 3,
-                          selected: widget.selectedIndex == 3,
-                        ),
-                      ),
-                      Expanded(
-                        child: _NavItem(
-                          icon: Icons.person_outline_rounded,
-                          selectedIcon: Icons.person_rounded,
-                          label: context.tr('nav.profile'),
-                          index: 4,
-                          selected: widget.selectedIndex == 4,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _GlassBubble extends StatelessWidget {
-  const _GlassBubble();
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF6B4EFF).withValues(alpha: 0.12),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(20),
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Colors.white.withValues(alpha: 0.78),
-                  const Color(0xFFF0ECF8).withValues(alpha: 0.58),
-                  Colors.white.withValues(alpha: 0.42),
-                ],
-              ),
-              border: Border.all(
-                color: Colors.white.withValues(alpha: 0.88),
-                width: 1.4,
-              ),
-            ),
-            child: const SizedBox.expand(),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _NavItem extends StatelessWidget {
-  final IconData icon;
-  final IconData selectedIcon;
-  final String label;
-  final int index;
-  final bool selected;
-  final int badgeCount;
-
-  const _NavItem({
-    required this.icon,
-    required this.selectedIcon,
-    required this.label,
-    required this.index,
-    required this.selected,
-    this.badgeCount = 0,
-  });
-
-  void _go(BuildContext context) {
     switch (index) {
       case 0:
         context.go('/');
@@ -323,40 +49,277 @@ class _NavItem extends StatelessWidget {
   }
 
   @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    ref.watch(localeControllerProvider);
+    final bottomInset = MediaQuery.viewPaddingOf(context).bottom;
+    final screenW = MediaQuery.sizeOf(context).width;
+    final barWidth = (screenW - _hPad * 2).clamp(280.0, 560.0);
+    final cartBadge = ref.watch(cartTotalQuantityProvider);
+    final index = selectedIndex.clamp(0, 4);
+
+    final items = <_NavItem>[
+      _NavItem(
+        label: context.tr('nav.home'),
+        icon: Icons.home_outlined,
+        selectedIcon: Icons.home_rounded,
+      ),
+      _NavItem(
+        label: context.tr('nav.catalog'),
+        icon: Icons.grid_view_outlined,
+        selectedIcon: Icons.grid_view_rounded,
+      ),
+      _NavItem(
+        label: context.tr('nav.cart'),
+        icon: Icons.shopping_cart_outlined,
+        selectedIcon: Icons.shopping_cart_rounded,
+        badgeCount: cartBadge,
+      ),
+      _NavItem(
+        label: context.tr('nav.favorites'),
+        icon: Icons.favorite_border_rounded,
+        selectedIcon: Icons.favorite_rounded,
+      ),
+      _NavItem(
+        label: context.tr('nav.profile'),
+        icon: Icons.person_outline_rounded,
+        selectedIcon: Icons.person_rounded,
+      ),
+    ];
+
+    // Важно: фиксированная высота — иначе Scaffold меряет бар на весь экран
+    // и тело вкладок схлопывается в пустоту.
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        _hPad,
+        _topPad,
+        _hPad,
+        bottomInset + _bottomExtra,
+      ),
+      child: SizedBox(
+        height: barHeight,
+        child: Center(
+          child: SizedBox(
+            width: barWidth,
+            height: barHeight,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(barHeight / 2),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.10),
+                    blurRadius: 16,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(barHeight / 2),
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+                  child: ColoredBox(
+                    color: const Color(0xE6FFFFFF),
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(barHeight / 2),
+                        border: Border.all(
+                          color: Colors.black.withValues(alpha: 0.06),
+                          width: 0.8,
+                        ),
+                      ),
+                      child: _LiquidBubbleNav(
+                        items: items,
+                        selectedIndex: index,
+                        onChanged: (i) => _go(context, i),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NavItem {
+  final String label;
+  final IconData icon;
+  final IconData selectedIcon;
+  final int badgeCount;
+
+  const _NavItem({
+    required this.label,
+    required this.icon,
+    required this.selectedIcon,
+    this.badgeCount = 0,
+  });
+}
+
+class _LiquidBubbleNav extends StatefulWidget {
+  final List<_NavItem> items;
+  final int selectedIndex;
+  final ValueChanged<int> onChanged;
+
+  const _LiquidBubbleNav({
+    required this.items,
+    required this.selectedIndex,
+    required this.onChanged,
+  });
+
+  @override
+  State<_LiquidBubbleNav> createState() => _LiquidBubbleNavState();
+}
+
+class _LiquidBubbleNavState extends State<_LiquidBubbleNav>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late double _fromIndex;
+  late double _toIndex;
+
+  static const _curve = Cubic(0.22, 1.0, 0.36, 1.0);
+
+  @override
+  void initState() {
+    super.initState();
+    _fromIndex = widget.selectedIndex.toDouble();
+    _toIndex = _fromIndex;
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 420),
+      value: 1,
+    );
+  }
+
+  @override
+  void didUpdateWidget(covariant _LiquidBubbleNav oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.selectedIndex != widget.selectedIndex) {
+      _fromIndex = _currentIndex;
+      _toIndex = widget.selectedIndex.toDouble();
+      _controller.forward(from: 0);
+    }
+  }
+
+  double get _currentIndex {
+    final t = _curve.transform(_controller.value);
+    return _fromIndex + (_toIndex - _fromIndex) * t;
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final color = selected
-        ? BottomNavigationBarWidget._iconColor
-        : BottomNavigationBarWidget._mutedColor;
+    final count = widget.items.length;
+
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, _) {
+        final bubbleIndex = _currentIndex;
+        // Лёгкий «подскок» пузыря в середине пути.
+        final travel = (_controller.value * (1 - _controller.value) * 4)
+            .clamp(0.0, 1.0);
+        final scaleY = 1.0 - (travel * 0.08);
+        final scaleX = 1.0 + (travel * 0.06);
+
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final slotW = constraints.maxWidth / count;
+            final bubbleW = slotW - 10;
+            final bubbleH = constraints.maxHeight - 12;
+            final left = bubbleIndex * slotW + (slotW - bubbleW) / 2;
+            final top = (constraints.maxHeight - bubbleH) / 2;
+
+            return Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Positioned(
+                  left: left,
+                  top: top,
+                  width: bubbleW,
+                  height: bubbleH,
+                  child: Transform.scale(
+                    scaleX: scaleX,
+                    scaleY: scaleY,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: const Color(0x229C27B0),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                    ),
+                  ),
+                ),
+                Row(
+                  children: [
+                    for (var i = 0; i < count; i++)
+                      Expanded(
+                        child: _NavTabButton(
+                          item: widget.items[i],
+                          selected: i == widget.selectedIndex,
+                          onTap: () => widget.onChanged(i),
+                        ),
+                      ),
+                  ],
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+class _NavTabButton extends StatelessWidget {
+  final _NavItem item;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _NavTabButton({
+    required this.item,
+    required this.selected,
+    required this.onTap,
+  });
+
+  static const _brand = Color(0xFF9C27B0);
+  static const _muted = Color(0xFF5C5C5C);
+
+  @override
+  Widget build(BuildContext context) {
+    final color = selected ? _brand : _muted;
 
     return InkWell(
-      onTap: () => _go(context),
-      borderRadius: BorderRadius.circular(20),
-      splashColor: Colors.black.withValues(alpha: 0.04),
-      highlightColor: Colors.black.withValues(alpha: 0.03),
+      onTap: onTap,
+      customBorder: const StadiumBorder(),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 2),
+        padding: const EdgeInsets.symmetric(vertical: 6),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             SizedBox(
-              height: 28,
+              width: 34,
+              height: 26,
               child: Stack(
                 alignment: Alignment.center,
                 clipBehavior: Clip.none,
                 children: [
-                  AnimatedScale(
-                    scale: selected ? 1.06 : 1.0,
-                    duration: const Duration(milliseconds: 360),
-                    curve: const Cubic(0.34, 1.3, 0.64, 1),
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 200),
                     child: Icon(
-                      selected ? selectedIcon : icon,
-                      size: 24,
+                      selected ? item.selectedIcon : item.icon,
+                      key: ValueKey(selected),
+                      size: selected ? 24 : 22,
                       color: color,
                     ),
                   ),
-                  if (index == 2 && badgeCount > 0)
+                  if (item.badgeCount > 0)
                     Positioned(
-                      right: -6,
+                      right: 0,
                       top: -2,
                       child: Container(
                         padding: const EdgeInsets.symmetric(
@@ -370,7 +333,7 @@ class _NavItem extends StatelessWidget {
                         ),
                         constraints: const BoxConstraints(minWidth: 16),
                         child: Text(
-                          badgeCount > 99 ? '99+' : '$badgeCount',
+                          item.badgeCount > 99 ? '99+' : '${item.badgeCount}',
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 9,
@@ -384,22 +347,16 @@ class _NavItem extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(height: 3),
-            AnimatedDefaultTextStyle(
-              duration: const Duration(milliseconds: 280),
-              curve: Curves.easeOutCubic,
+            const SizedBox(height: 2),
+            Text(
+              item.label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                color: color,
                 fontSize: 9.5,
-                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                letterSpacing: -0.2,
                 height: 1.1,
-              ),
-              child: Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                color: color,
               ),
             ),
           ],

@@ -59,15 +59,31 @@ class CatalogCategoriesCache {
   List<Map<String, dynamic>> categories = const [];
   DateTime? loadedAt;
 
-  bool get hasData => categories.isNotEmpty;
+  bool get hasData => categories.isNotEmpty && !_looksBroken(categories);
 
   bool get isStale {
     if (loadedAt == null) return true;
+    if (_looksBroken(categories)) return true;
     return DateTime.now().difference(loadedAt!) > const Duration(minutes: 30);
+  }
+
+  static bool _looksBroken(List<Map<String, dynamic>> list) {
+    if (list.isEmpty) return false;
+    final placeholders = {'', 'категория', 'category'};
+    final broken = list.where((c) {
+      final name = (c['name'] ?? c['title'] ?? '').toString().trim().toLowerCase();
+      return placeholders.contains(name);
+    }).length;
+    return broken >= (list.length / 2).ceil();
   }
 
   void save(List<Map<String, dynamic>> value) {
     categories = value;
     loadedAt = DateTime.now();
+  }
+
+  void clear() {
+    categories = const [];
+    loadedAt = null;
   }
 }

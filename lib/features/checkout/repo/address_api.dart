@@ -18,6 +18,7 @@ class AddressApi {
     String? region,
     String? postalCode,
     String? phone,
+    String? email,
     String country = 'TJ', // Код страны по умолчанию (TJ = Tajikistan)
     String type = 'delivery',
   }) async {
@@ -25,15 +26,17 @@ class AddressApi {
       print('[DEBUG] AddressApi.createAddress: Создаем новый адрес...');
       
       // Получаем email пользователя из профиля
-      String? userEmail;
-      try {
-        final profileResult = await AuthApi.getProfile();
-        if (profileResult is Ok<Map<String, dynamic>>) {
-          userEmail = profileResult.value['email'] as String?;
-          print('[DEBUG] AddressApi.createAddress: Получен email из профиля: $userEmail');
+      String? userEmail = email;
+      if (userEmail == null || userEmail.trim().isEmpty) {
+        try {
+          final profileResult = await AuthApi.getProfile();
+          if (profileResult is Ok<Map<String, dynamic>>) {
+            userEmail = profileResult.value['email'] as String?;
+            print('[DEBUG] AddressApi.createAddress: Получен email из профиля: $userEmail');
+          }
+        } catch (e) {
+          print('[DEBUG] AddressApi.createAddress: Не удалось получить email из профиля: $e');
         }
-      } catch (e) {
-        print('[DEBUG] AddressApi.createAddress: Не удалось получить email из профиля: $e');
       }
       
       // Формируем payload в формате, который ожидает сервер
@@ -50,7 +53,7 @@ class AddressApi {
         'type': type,
         'is_default': false,
         'country': country, // Код страны из 2 символов (например, 'TJ' для Tajikistan)
-        if (userEmail != null) 'email': userEmail, // Добавляем email (обязательное поле)
+        if (userEmail != null && userEmail.trim().isNotEmpty) 'email': userEmail.trim(),
       };
       
       print('[DEBUG] AddressApi.createAddress: Payload = $payload');

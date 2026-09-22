@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Admin;
 use App\Models\Attribute;
 use App\Models\Brand;
 use App\Models\BundleDeal;
@@ -281,6 +282,26 @@ class ProductsController extends ControllerHelper
                     ->orderBy('created_at', 'ASC')->get(['id', 'title']);
             }
 
+            // Список продавцов/магазинов — только для админов (не vendor)
+            $res['sellers'] = [];
+            if (!$this->isVendor) {
+                $res['sellers'] = Admin::query()
+                    ->leftJoin('stores', 'stores.admin_id', '=', 'admins.id')
+                    ->select('admins.id', 'admins.name', 'admins.email', 'stores.name as store_name')
+                    ->orderBy('admins.name')
+                    ->get()
+                    ->map(function ($row) {
+                        $title = trim((string) ($row->store_name ?: $row->name));
+                        if ($row->email) {
+                            $title .= ' — ' . $row->email;
+                        }
+                        return [
+                            'id' => $row->id,
+                            'title' => $title,
+                        ];
+                    })
+                    ->values();
+            }
 
             return response()->json(new Response($request->token, $res));
 
@@ -385,6 +406,17 @@ class ProductsController extends ControllerHelper
                 });
                 unset($filtered['primary_category_id']);
 
+                // Vendor не может менять владельца товара
+                if ($this->isVendor) {
+                    unset($filtered['admin_id']);
+                } elseif (array_key_exists('admin_id', $filtered)) {
+                    $newOwnerId = (int) $filtered['admin_id'];
+                    if ($newOwnerId > 0 && Admin::where('id', $newOwnerId)->exists()) {
+                        $filtered['admin_id'] = $newOwnerId;
+                    } else {
+                        unset($filtered['admin_id']);
+                    }
+                }
 
                 if ($lang) {
                     [$langData, $mainData] = Utils::seperateLangData($filtered, [
@@ -407,6 +439,13 @@ class ProductsController extends ControllerHelper
                     Product::where('id', $id)->update($filtered);
                 }
 
+                // Синхронизируем владельца у изображений товара
+                if (!$this->isVendor && isset($filtered['admin_id'])) {
+                    ProductImage::where('product_id', $id)->update([
+                        'admin_id' => $filtered['admin_id'],
+                    ]);
+                }
+
             } else {
 
                 if ($can = Utils::userCan($this->user, 'product.create')) {
@@ -419,7 +458,17 @@ class ProductsController extends ControllerHelper
                 }
 
                 $request['image'] = Config::get('constants.media.DEFAULT_IMAGE');
-                $request['admin_id'] = $request->user()->id;
+                // Админ может указать продавца; vendor — только себя
+                if ($this->isVendor) {
+                    $request['admin_id'] = $request->user()->id;
+                } else {
+                    $requestedOwner = (int) $request->input('admin_id', 0);
+                    if ($requestedOwner > 0 && Admin::where('id', $requestedOwner)->exists()) {
+                        $request['admin_id'] = $requestedOwner;
+                    } else {
+                        $request['admin_id'] = $request->user()->id;
+                    }
+                }
                 $request['id'] = Utils::idGenerator(new Product);
 
 

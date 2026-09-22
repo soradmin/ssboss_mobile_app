@@ -44,6 +44,56 @@ List<ProductImage> parseProductImagesFromApi(
 }
 
 class CatalogApi {
+  /// Без language-заголовка: иначе API отдаёт null из category_langs и в UI
+  /// остаётся заглушка «Категория».
+  static Options get _categoriesRequestOptions {
+    final headers = Map<String, dynamic>.from(dio.options.headers);
+    headers.remove('language');
+    headers['language'] = '';
+    return Options(headers: headers);
+  }
+
+  static String resolveCategoryTitle(Map category) {
+    for (final key in ['title', 'name', 'label']) {
+      final v = category[key];
+      if (v == null) continue;
+      final s = v.toString().trim();
+      if (s.isEmpty) continue;
+      if (s == 'Категория' || s.toLowerCase() == 'category') continue;
+      return s;
+    }
+    final slug = category['slug']?.toString().trim() ?? '';
+    if (slug.isNotEmpty) {
+      return slug
+          .replaceAll('-', ' ')
+          .replaceAll('_', ' ')
+          .split(' ')
+          .where((w) => w.isNotEmpty)
+          .map((w) => '${w[0].toUpperCase()}${w.substring(1)}')
+          .join(' ');
+    }
+    return '';
+  }
+
+  static String? _resolveCategoryImage(Map category) {
+    final image = category['image']?.toString().trim();
+    if (image == null || image.isEmpty) return null;
+    if (image.startsWith('http')) return image;
+    return 'https://ssboss.shop/uploads/$image';
+  }
+
+  static Map<String, dynamic> _mapCategory(Map<String, dynamic> category) {
+    final title = resolveCategoryTitle(category);
+    return {
+      'name': title,
+      'title': title,
+      'slug': category['slug'] ?? category['id']?.toString() ?? '',
+      'id': category['id'],
+      'image': _resolveCategoryImage(category),
+      'product_count': category['product_count'] ?? category['count'],
+    };
+  }
+
   static String _cdnImageUrl(String raw) {
     raw = raw.trim();
     if (raw.isEmpty) return '';
@@ -164,21 +214,34 @@ class CatalogApi {
     String? search,
     int? categoryId,
     int? brandId,
+    String sortby = '',
+    double minPrice = 0,
+    double maxPrice = 0,
+    int rating = 0,
+    String shipping = '',
+    int? bannerId,
+    int? sliderId,
   }) async {
     try {
       final queryParams = <String, dynamic>{
         'page': page,
-        'sortby': '',
-        'shipping': '',
+        'sortby': sortby,
+        'shipping': shipping,
         'brand': brandId != null && brandId > 0 ? brandId.toString() : '',
         'collection': '',
-        'rating': 0,
-        'max': 0,
-        'min': 0,
+        'rating': rating,
+        'max': maxPrice > 0 ? maxPrice : 0,
+        'min': minPrice > 0 ? minPrice : 0,
         'q': search ?? '',
         'all_categories': 'true',
         'sidebar_data': 'true',
       };
+      if (bannerId != null && bannerId > 0) {
+        queryParams['banner'] = bannerId;
+      }
+      if (sliderId != null && sliderId > 0) {
+        queryParams['home_spm'] = sliderId;
+      }
       
       // Добавляем фильтры если они есть
       if (category != null && category.isNotEmpty) {
@@ -390,13 +453,13 @@ class CatalogApi {
       
       for (final endpoint in categoryEndpoints) {
         try {
-          res = await dio.get(endpoint);
+          res = await dio.get(endpoint, options: _categoriesRequestOptions);
           data = res.data;
           print('[DEBUG] Categories endpoint $endpoint response: $data');
           if (data != null && data is Map && data.isNotEmpty) {
             // Специальная обработка для /api/v1/categories
-            if (endpoint == '/api/v1/categories') {
-              print('[DEBUG] Обрабатываем ответ от /api/v1/categories');
+            if (endpoint == '/api/v1/categories' || endpoint == '/categories') {
+              print('[DEBUG] Обрабатываем ответ от $endpoint');
               print('[DEBUG] Структура ответа: data.keys = ${data.keys.toList()}');
               
               List? categoriesList;
@@ -422,41 +485,20 @@ class CatalogApi {
               if (categoriesList != null && categoriesList.isNotEmpty) {
                 print('[DEBUG] Количество категорий: ${categoriesList.length}');
                 
-                // Обрабатываем каждую категорию
-                for (int i = 0; i < categoriesList.length; i++) {
-                  final category = categoriesList[i] as Map<String, dynamic>;
-                  print('[DEBUG] Категория $i: keys=${category.keys.toList()}');
-                  print('[DEBUG] Категория $i: title=${category['title']}, name=${category['name']}');
-                  print('[DEBUG] Категория $i: slug=${category['slug']}, image=${category['image']}');
-                }
-                
-                // Преобразуем в нужный формат
-                categories = categoriesList.map((e) {
-                  final category = e as Map<String, dynamic>;
-                  // API возвращает 'title', поэтому приоритет у title
-                  final title = category['title'] ?? category['name'] ?? 'Категория';
-                  final slug = category['slug'] ?? category['id']?.toString() ?? '';
-                  final image = category['image']?.toString();
-                  
-                  print('[DEBUG] Обрабатываем категорию: title="$title" (slug: $slug, image: $image)');
-                  
-                  return {
-                    'name': title,
-                    'slug': slug,
-                    'id': category['id'],
-                    'image': image != null && image.isNotEmpty 
-                        ? (image.startsWith('http') ? image : 'https://ssboss.shop/uploads/$image')
-                        : null,
-                    'product_count': category['product_count'] ?? category['count'] ?? null,
-                  };
-                }).toList();
+                categories = categoriesList
+                    .whereType<Map>()
+                    .map((e) => _mapCategory(Map<String, dynamic>.from(e)))
+                    .where((c) => (c['name'] as String).isNotEmpty)
+                    .toList();
                 
                 print('[DEBUG] Обработано категорий: ${categories.length}');
                 print('[DEBUG] Первые 3 категории:');
                 for (int i = 0; i < categories.length && i < 3; i++) {
                   print('[DEBUG]   $i: name="${categories[i]['name']}", slug="${categories[i]['slug']}"');
                 }
-                break; // Выходим из цикла, так как нашли категории
+                if (categories.isNotEmpty) {
+                  break;
+                }
               } else {
                 print('[DEBUG] Категории не найдены в ожидаемой структуре');
               }
@@ -573,66 +615,11 @@ class CatalogApi {
             final allCategories = dataMap['all_categories'] as List;
             print('[DEBUG] All categories count: ${allCategories.length}');
             
-            categories = allCategories.map((e) {
-              final category = e as Map<String, dynamic>;
-              // API возвращает 'title', поэтому приоритет у title
-              final title = category['title'] ?? category['name'] ?? 'Категория';
-              final slug = category['slug'] ?? category['id']?.toString() ?? '';
-              
-              print('[DEBUG] Обрабатываем категорию: $title (slug: $slug)');
-              print('[DEBUG] Исходные данные категории: $category');
-              
-              // Сначала проверяем, есть ли изображение в исходных данных
-              String? imageUrl = category['image']?.toString();
-              if (imageUrl != null && imageUrl.isNotEmpty) {
-                print('[DEBUG] Найдено изображение в исходных данных: $imageUrl');
-                if (!imageUrl.startsWith('http')) {
-                  imageUrl = 'https://ssboss.shop/uploads/$imageUrl';
-                  print('[DEBUG] Преобразовано в полный URL: $imageUrl');
-                }
-              } else {
-                // Если изображения нет в данных, используем хардкод на основе slug
-                print('[DEBUG] Изображение не найдено в данных, используем хардкод для slug: $slug');
-                if (slug == 'women-apparel') {
-                  imageUrl = 'https://ssboss.shop/uploads/category-1760523981-3.png';
-                } else if (slug == 'mens-wear') {
-                  imageUrl = 'https://ssboss.shop/uploads/thumb-category-1758725932-7.png'; // Замените на реальное изображение
-                } else if (slug == 'kids-apparel') {
-                  imageUrl = 'https://ssboss.shop/uploads/thumb-category-1758725932-7.png'; // Замените на реальное изображение
-                } else if (slug == 'shoes') {
-                  imageUrl = 'https://ssboss.shop/uploads/thumb-category-1758725932-7.png'; // Замените на реальное изображение
-                } else if (slug == 'home') {
-                  imageUrl = 'https://ssboss.shop/uploads/thumb-category-1758725932-7.png'; // Замените на реальное изображение
-                } else if (slug == 'beauty') {
-                  imageUrl = 'https://ssboss.shop/uploads/thumb-category-1758725932-7.png'; // Замените на реальное изображение
-                } else if (slug == 'accessories') {
-                  imageUrl = 'https://ssboss.shop/uploads/thumb-category-1758725932-7.png'; // Замените на реальное изображение
-                } else if (slug == 'electronics') {
-                  imageUrl = 'https://ssboss.shop/uploads/thumb-category-1758725932-7.png'; // Замените на реальное изображение
-                } else if (slug == 'toys') {
-                  imageUrl = 'https://ssboss.shop/uploads/thumb-category-1758725932-7.png'; // Замените на реальное изображение
-                } else if (slug == 'furniture') {
-                  imageUrl = 'https://ssboss.shop/uploads/thumb-category-1758725932-7.png'; // Замените на реальное изображение
-                } else if (slug == 'food') {
-                  imageUrl = 'https://ssboss.shop/uploads/thumb-category-1758725932-7.png'; // Замените на реальное изображение
-                } else if (slug == 'appliances') {
-                  imageUrl = 'https://ssboss.shop/uploads/thumb-category-1758725932-7.png'; // Замените на реальное изображение
-                } else if (slug == 'pet-supplies') {
-                  imageUrl = 'https://ssboss.shop/uploads/thumb-category-1758725932-7.png'; // Замените на реальное изображение
-                }
-              }
-              
-              print('[DEBUG] Финальное изображение для $title: $imageUrl');
-              
-              // Преобразуем структуру для соответствия нашему формату
-              return {
-                'name': title,
-                'slug': slug,
-                'id': category['id'],
-                'image': imageUrl,
-                'product_count': category['product_count'] ?? category['count'] ?? null,
-              };
-            }).toList();
+            categories = allCategories
+                .whereType<Map>()
+                .map((e) => _mapCategory(Map<String, dynamic>.from(e)))
+                .where((c) => (c['name'] as String).isNotEmpty)
+                .toList();
           }
           
           // Если все еще нет категорий, ищем в других полях
@@ -709,6 +696,13 @@ class CatalogApi {
         }
       }
 
+      // Нормализуем названия (без заглушки «Категория»), если пришли сырые объекты.
+      categories = categories
+          .whereType<Map>()
+          .map((e) => _mapCategory(Map<String, dynamic>.from(e)))
+          .where((c) => (c['name'] as String).isNotEmpty)
+          .toList();
+
       print('[DEBUG] Final categories count: ${categories.length}');
       
       // Если категории не найдены, возвращаем пустой список (fallback будет использован в UI)
@@ -729,11 +723,8 @@ class CatalogApi {
 
   Future<Result<Product>> productById(int id) async {
     try {
-      print('[DEBUG] Запрос детальной информации для товара ID: $id');
-      // iShop details endpoint
       final res = await dio.get('/product/$id', queryParameters: {'id': id, 'user_id': ''});
       final data = res.data;
-      print('[DEBUG] Ответ API для товара $id: $data');
 
       Map<String, dynamic>? obj;
       if (data is Map && data['data'] is Map) {
@@ -743,16 +734,6 @@ class CatalogApi {
       }
 
       if (obj == null) return const Err('Product not found');
-
-      // Отладочная информация для детального просмотра товара
-      print('[DEBUG] Product detail JSON keys: ${obj.keys.toList()}');
-      for (final key in obj.keys) {
-        if (key.toString().toLowerCase().contains('desc') || 
-            key.toString().toLowerCase().contains('content') ||
-            key.toString().toLowerCase().contains('detail')) {
-          print('[DEBUG] Found potential description field "$key": ${obj[key]}');
-        }
-      }
 
       String _imgUrl(String raw) {
         raw = (raw ?? '').toString().trim();

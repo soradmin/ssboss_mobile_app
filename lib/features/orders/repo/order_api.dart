@@ -452,11 +452,11 @@ class OrderApi {
     }
   }
 
-  /// Повторить отмененный заказ — добавить товары в корзину
+  /// Повторить заказ — добавить товары в корзину
   Future<Result<int>> repeatOrder(Order order) async {
     try {
-      if (!order.isCancelled) {
-        return const Err('Повторить можно только отмененный заказ');
+      if (!order.canRepeatOrder) {
+        return const Err('Повторить можно отменённый или доставленный заказ');
       }
 
       if (!await OrderActionLimitService.canPerformAction(order.id)) {
@@ -529,29 +529,35 @@ class OrderApi {
     return null;
   }
 
-  /// Оценить товар в заказе
+  /// Оценить товар в заказе (сервер: POST /rating-review/action).
   Future<Result<void>> rateProduct(int orderId, int productId, int rating, String? comment) async {
     try {
       print('[DEBUG] OrderApi.rateProduct: Оцениваем товар $productId в заказе $orderId');
-      
-      final response = await _apiClient.post('/order/rate', data: {
+
+      final response = await _apiClient.post('/rating-review/action', data: {
         'order_id': orderId,
         'product_id': productId,
         'rating': rating,
-        'comment': comment,
+        'review': comment ?? '',
       });
-      
+
       print('[DEBUG] OrderApi.rateProduct: HTTP статус = ${response.statusCode}');
       print('[DEBUG] OrderApi.rateProduct: Ответ сервера = ${response.data}');
-      
-      if (response.statusCode == 200) {
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final data = response.data;
+        if (data is Map && data['error'] == true) {
+          return Err(_extractApiErrorMessage(data) ?? 'Не удалось отправить отзыв');
+        }
         return const Ok(null);
       }
-      
-      return Err('Не удалось оценить товар: ${response.statusCode}');
+
+      return Err(_extractApiErrorMessage(response.data) ??
+          'Не удалось оценить товар: ${response.statusCode}');
     } on DioException catch (e) {
       print('[DEBUG] OrderApi.rateProduct: DioException: ${e.message}');
-      return Err('Ошибка оценки товара: ${e.message}');
+      return Err(_extractApiErrorMessage(e.response?.data) ??
+          'Ошибка оценки товара: ${e.message}');
     } catch (e) {
       print('[DEBUG] OrderApi.rateProduct: Общая ошибка: $e');
       return Err('Неожиданная ошибка: ${e.toString()}');

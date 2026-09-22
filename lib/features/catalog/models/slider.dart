@@ -4,6 +4,7 @@ class SliderItem {
   final String image;
   final String? link;
   final int? order;
+  final int? sourceType;
   final bool isActive;
 
   const SliderItem({
@@ -12,6 +13,7 @@ class SliderItem {
     required this.image,
     this.link,
     this.order,
+    this.sourceType,
     this.isActive = true,
   });
 
@@ -20,9 +22,10 @@ class SliderItem {
       id: (json['id'] ?? 0) as int,
       title: (json['title'] ?? json['name'] ?? '').toString(),
       image: (json['image'] ?? json['url'] ?? '').toString(),
-      link: json['url']?.toString(), // В API поле называется 'url'
-      order: json['type'] as int?, // Используем 'type' как порядок
-      isActive: (json['status'] ?? 1) == 1, // status: 1 = активный
+      link: (json['url'] ?? json['link'] ?? json['slug'])?.toString(),
+      order: json['type'] as int?,
+      sourceType: json['source_type'] as int?,
+      isActive: (json['status'] ?? 1) == 1,
     );
   }
 
@@ -33,6 +36,7 @@ class SliderItem {
       'image': image,
       'link': link,
       'order': order,
+      'source_type': sourceType,
       'is_active': isActive,
     };
   }

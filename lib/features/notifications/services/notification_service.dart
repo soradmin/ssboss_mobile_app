@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/api_client.dart';
 import '../../../core/config.dart';
 import '../../../app_router.dart';
+import 'notification_prefs.dart';
 
 /// Сервис для работы с push-уведомлениями
 class NotificationService {
@@ -24,7 +25,7 @@ class NotificationService {
   String? _fcmToken;
   static const String _notificationsKey = 'recent_notifications';
   static const String _pendingFcmTokenKey = 'pending_fcm_token';
-  static const int _maxNotifications = 2; // Сохраняем последние 2 уведомления
+  static const int _maxNotifications = 50;
 
   /// Инициализация сервиса уведомлений
   Future<void> initialize() async {
@@ -109,15 +110,42 @@ class NotificationService {
     }
   }
 
+  Future<bool> _shouldShowByPrefs(RemoteMessage message) async {
+    final prefs = await NotificationPrefs.load();
+    final type = (message.data['type'] ?? message.data['notification_type'] ?? '')
+        .toString()
+        .toLowerCase();
+    if (type.contains('order') || message.data.containsKey('order_id')) {
+      return prefs.orders;
+    }
+    if (type.contains('promo') ||
+        type.contains('offer') ||
+        type.contains('sale') ||
+        type.contains('discount')) {
+      return prefs.promos;
+    }
+    if (type.contains('store') || type.contains('seller')) {
+      return prefs.stores;
+    }
+    if (type.contains('price') || type.contains('wishlist')) {
+      return prefs.priceDrops;
+    }
+    return true;
+  }
+
   /// Настройка обработчиков сообщений
   void _setupMessageHandlers() {
     // Обработка сообщений, когда приложение в foreground
-    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) async {
       print('[NOTIFICATIONS] 📨 Сообщение получено в foreground:');
       print('[NOTIFICATIONS]   Заголовок: ${message.notification?.title}');
       print('[NOTIFICATIONS]   Текст: ${message.notification?.body}');
       print('[NOTIFICATIONS]   Данные: ${message.data}');
 
+      if (!await _shouldShowByPrefs(message)) {
+        print('[NOTIFICATIONS] ⏭️ Пропущено по настройкам пользователя');
+        return;
+      }
       _showLocalNotification(message);
     });
 
@@ -152,6 +180,25 @@ class NotificationService {
   /// Получение и отправка FCM токена на сервер
   Future<void> _getAndSendFcmToken() async {
     try {
+      // На iOS FCM-токен появляется только после APNs device token.
+      if (Platform.isIOS) {
+        String? apns;
+        for (var i = 0; i < 15 && (apns == null || apns.isEmpty); i++) {
+          apns = await _firebaseMessaging.getAPNSToken();
+          if (apns == null || apns.isEmpty) {
+            print('[NOTIFICATIONS] ⏳ Ждём APNs токен... попытка ${i + 1}/15');
+            await Future.delayed(const Duration(milliseconds: 500));
+          }
+        }
+        if (apns == null || apns.isEmpty) {
+          print(
+            '[NOTIFICATIONS] ⚠️ APNs токен не получен — Push Capability / профиль / Firebase APNs key?',
+          );
+        } else {
+          print('[NOTIFICATIONS] ✅ APNs токен получен');
+        }
+      }
+
       _fcmToken = await _firebaseMessaging.getToken();
       print('[NOTIFICATIONS] 🔑 FCM токен получен: $_fcmToken');
 
@@ -273,21 +320,33 @@ class NotificationService {
     }
   }
 
-  /// Показать локальное уведомление
+  /// Показать локальное уведомление (FCM foreground).
   Future<void> _showLocalNotification(RemoteMessage message) async {
     final notification = message.notification;
-
     if (notification == null) return;
 
-    // Очищаем HTML из body для отображения в уведомлении
-    String cleanBody = _cleanHtmlFromText(notification.body ?? '');
+    await showLocalNotification(
+      title: notification.title ?? '',
+      body: notification.body ?? '',
+      payload: jsonEncode(message.data),
+      id: message.hashCode,
+    );
+    await _saveNotification(message);
+  }
 
+  /// Произвольное локальное уведомление (price alerts и т.п.).
+  Future<void> showLocalNotification({
+    required String title,
+    required String body,
+    String? payload,
+    int? id,
+  }) async {
+    final cleanBody = _cleanHtmlFromText(body);
     const iosDetails = DarwinNotificationDetails(
       presentAlert: true,
       presentBadge: true,
       presentSound: true,
     );
-
     final details = NotificationDetails(
       android: AndroidNotificationDetails(
         'ssboss_notifications',
@@ -303,19 +362,42 @@ class NotificationService {
       iOS: iosDetails,
     );
 
-    // Сохраняем данные в JSON для парсинга при нажатии
-    final payload = jsonEncode(message.data);
-
     await _localNotifications.show(
-      message.hashCode,
-      notification.title,
+      id ?? DateTime.now().millisecondsSinceEpoch.remainder(1 << 31),
+      title,
       cleanBody,
       details,
       payload: payload,
     );
 
-    // Сохраняем уведомление в историю
-    await _saveNotification(message);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final notificationsJson = prefs.getString(_notificationsKey);
+      List<Map<String, dynamic>> notifications = [];
+      if (notificationsJson != null) {
+        notifications =
+            (jsonDecode(notificationsJson) as List).cast<Map<String, dynamic>>();
+      }
+      Map<String, dynamic> data = {};
+      if (payload != null && payload.isNotEmpty) {
+        try {
+          data = Map<String, dynamic>.from(jsonDecode(payload) as Map);
+        } catch (_) {}
+      }
+      notifications.insert(0, {
+        'id': '${id ?? DateTime.now().millisecondsSinceEpoch}',
+        'title': title,
+        'body': body,
+        'data': data,
+        'timestamp': DateTime.now().toIso8601String(),
+      });
+      if (notifications.length > _maxNotifications) {
+        notifications = notifications.take(_maxNotifications).toList();
+      }
+      await prefs.setString(_notificationsKey, jsonEncode(notifications));
+    } catch (e) {
+      print('[NOTIFICATIONS] ❌ Ошибка сохранения локального уведомления: $e');
+    }
   }
 
   /// Сохраняет уведомление в историю (последние 2)

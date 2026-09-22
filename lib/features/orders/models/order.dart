@@ -355,7 +355,24 @@ class Order {
         normalized == '1';
   }
 
-  bool get canRepeatOrder => isCancelled;
+  /// Повторить можно отменённый или доставленный заказ.
+  bool get canRepeatOrder {
+    if (isCancelled) return true;
+    final s = status.toLowerCase();
+    return s == 'delivered' ||
+        s == '5' ||
+        s.contains('доставлен') ||
+        s.contains('расонд');
+  }
+
+  bool get isDelivered {
+    if (isCancelled) return false;
+    final s = status.toLowerCase();
+    return s == 'delivered' ||
+        s == '5' ||
+        s.contains('доставлен') ||
+        s.contains('расонд');
+  }
 }
 
 class OrderAddress {

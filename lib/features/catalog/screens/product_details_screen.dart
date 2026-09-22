@@ -8,8 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:carousel_slider/carousel_slider.dart';
 import 'package:cached_network_image/cached_network_image.dart'; 
 import 'package:video_player/video_player.dart'; 
-import 'package:chewie/chewie.dart'; 
-import 'package:shimmer/shimmer.dart';
+import 'package:chewie/chewie.dart';
 import 'package:carousel_slider/carousel_controller.dart' as cs;
 import '../../../core/date_formatter.dart';
 import '../../../core/l10n/locale_controller.dart';
@@ -64,16 +63,25 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
   @override
   void initState() {
     _carouselController = cs.CarouselSliderController();
-    _images = List<ProductImage>.from(widget.p.images);
+    _images = _seedImages(widget.p);
     _videos = List<ProductVideo>.from(widget.p.videos);
-    // Инициализируем контроллеры для видео
     _chewieControllers.addAll(List.generate(_videos.length, (_) => null));
-    // Подтягиваем полные данные (галерея + привязка фото к вариантам)
     _applyDefaultAttributeSelections(widget.p);
-    _loadDetails();
+    unawaited(_loadDetails());
     unawaited(_loadStoreFollowStatus(widget.p));
     unawaited(UserPreferenceService.instance.recordView(widget.p));
     super.initState();
+  }
+
+  /// Сразу показываем фото из карточки каталога — без пустого shimmer и без скачка.
+  List<ProductImage> _seedImages(Product p) {
+    if (p.images.isNotEmpty) {
+      return List<ProductImage>.from(p.images);
+    }
+    if (p.image.isNotEmpty) {
+      return [ProductImage(image: p.image, thumb: p.image)];
+    }
+    return const [];
   }
 
   @override
@@ -246,14 +254,19 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
     final api = CatalogApi();
     final res = await api.productById(widget.p.id);
     if (!mounted) return;
+
     if (res is Ok<Product>) {
       final full = res.value;
       setState(() {
-        _images = full.images;
+        // Мягко обновляем галерею: не мигаем, если первое фото то же.
+        if (full.images.isNotEmpty) {
+          _images = full.images;
+        }
         _videos = full.videos;
-        _chewieControllers.clear();
-        _chewieControllers.addAll(List.generate(_videos.length, (_) => null));
-        
+        _chewieControllers
+          ..clear()
+          ..addAll(List.generate(_videos.length, (_) => null));
+
         _currentProduct = full.copyWith(
           name: full.name.isNotEmpty ? full.name : widget.p.name,
           image: full.image.isNotEmpty ? full.image : widget.p.image,
@@ -278,47 +291,11 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
         _applyDefaultAttributeSelections(_currentProduct!);
       });
       unawaited(_loadStoreFollowStatus(_currentProduct!));
-      unawaited(_loadReviews());
     }
-    _loadRecommendedProducts();
 
-    {
-      print('[DEBUG] Текущее описание товара: ${(_currentProduct ?? widget.p).description}');
-      print('[DEBUG] Загружаем описание для товара ID: ${widget.p.id}');
-      final descriptionResult = await CatalogApi().getProductDescription(widget.p.id);
-      if (!mounted) return;
-
-      if (descriptionResult is Ok<Map<String, dynamic>?>) {
-        final result = descriptionResult.value;
-        String? description;
-        List<String> descriptionImages = [];
-
-        if (result is Map<String, dynamic>) {
-          description = result['description']?.toString();
-          if (result['images'] is List) {
-            descriptionImages = (result['images'] as List)
-                .map((e) => e.toString())
-                .where((url) => url.isNotEmpty)
-                .toList();
-          }
-        } else if (result is String) {
-          description = result;
-        }
-
-        final existing = _currentProduct ?? widget.p;
-        final hasText = description != null && description.trim().isNotEmpty;
-        if (hasText || descriptionImages.isNotEmpty) {
-          setState(() {
-            _currentProduct = existing.copyWith(
-              description: hasText ? description : existing.description,
-              descriptionImages: descriptionImages.isNotEmpty
-                  ? descriptionImages
-                  : existing.descriptionImages,
-            );
-          });
-        }
-      }
-    }
+    // Параллельно: отзывы + рекомендации (не блокируют первый кадр).
+    unawaited(_loadReviews());
+    unawaited(_loadRecommendedProducts());
   }
 
   // Загрузка рекомендуемых товаров
@@ -530,18 +507,23 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
   @override
   Widget build(BuildContext context) {
     ref.watch(localeControllerProvider);
-    // Отладочная информация
     final product = _currentProduct ?? widget.p;
-    print('[DEBUG] Отображение товара: ID=${product.id}, описание=${product.description != null ? 'есть' : 'нет'}, изображения описания=${product.descriptionImages.length}');
-    // Создаем общий список медиа (изображения и видео)
     final List<Widget> mediaItems = [];
     final List<Widget> thumbnailItems = [];
+    final screenW = MediaQuery.sizeOf(context).width;
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    final heroCacheW = (screenW * dpr).round().clamp(480, 1400);
+    final heroCacheH = (heroCacheW * 5 / 4).round();
+    final seedUrl = widget.p.image.isNotEmpty
+        ? AppConfig.imageUrl(widget.p.image)
+        : '';
+
     final List<String> galleryImageUrls = _images
         .map((img) => AppConfig.imageUrl(img.image))
         .where((url) => url.isNotEmpty)
         .toList();
-    if (galleryImageUrls.isEmpty && widget.p.image.isNotEmpty) {
-      galleryImageUrls.add(AppConfig.imageUrl(widget.p.image));
+    if (galleryImageUrls.isEmpty && seedUrl.isNotEmpty) {
+      galleryImageUrls.add(seedUrl);
     }
 
     void openGalleryAt(int imageIndex) {
@@ -549,6 +531,49 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
         context,
         imageUrls: galleryImageUrls,
         initialIndex: imageIndex,
+      );
+    }
+
+    Widget heroImage(String url, {String? placeholderUrl}) {
+      final ph = (placeholderUrl != null &&
+              placeholderUrl.isNotEmpty &&
+              placeholderUrl != url)
+          ? placeholderUrl
+          : seedUrl;
+      return CachedNetworkImage(
+        imageUrl: url,
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: double.infinity,
+        alignment: Alignment.center,
+        memCacheWidth: heroCacheW,
+        memCacheHeight: heroCacheH,
+        fadeInDuration: Duration.zero,
+        fadeOutDuration: Duration.zero,
+        placeholderFadeInDuration: Duration.zero,
+        useOldImageOnUrlChange: true,
+        placeholder: (context, _) {
+          if (ph.isNotEmpty) {
+            return CachedNetworkImage(
+              imageUrl: ph,
+              fit: BoxFit.cover,
+              width: double.infinity,
+              height: double.infinity,
+              fadeInDuration: Duration.zero,
+              fadeOutDuration: Duration.zero,
+              memCacheWidth: heroCacheW,
+              memCacheHeight: heroCacheH,
+              errorWidget: (_, __, ___) => const ColoredBox(
+                color: ProductDetailMono.heroBg,
+              ),
+            );
+          }
+          return const ColoredBox(color: ProductDetailMono.heroBg);
+        },
+        errorWidget: (context, url, error) => const ColoredBox(
+          color: ProductDetailMono.heroBg,
+          child: Center(child: Icon(Icons.image_not_supported_outlined)),
+        ),
       );
     }
 
@@ -565,21 +590,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
           onTap: () => openGalleryAt(i),
           child: ColoredBox(
             color: ProductDetailMono.heroBg,
-            child: CachedNetworkImage(
-              imageUrl: fullImageUrl,
-              fit: BoxFit.cover,
-              width: double.infinity,
-              height: double.infinity,
-              placeholder: (context, url) => Shimmer.fromColors(
-                baseColor: Colors.grey[300]!,
-                highlightColor: Colors.grey[100]!,
-                child: Container(color: Colors.white),
-              ),
-              errorWidget: (context, url, error) => const ColoredBox(
-                color: ProductDetailMono.heroBg,
-                child: Center(child: Icon(Icons.image_not_supported_outlined)),
-              ),
-            ),
+            child: heroImage(fullImageUrl, placeholderUrl: thumbUrl),
           ),
         ),
       );
@@ -604,6 +615,9 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
               child: CachedNetworkImage(
                 imageUrl: thumbUrl,
                 fit: BoxFit.cover,
+                memCacheWidth: 120,
+                memCacheHeight: 120,
+                fadeInDuration: Duration.zero,
                 placeholder: (context, url) => Container(color: Colors.grey[300]),
                 errorWidget: (context, url, error) => Container(color: Colors.grey[300]),
               ),
@@ -705,21 +719,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                     color: Color(0x11000000),
                     child: Center(child: Icon(Icons.image_not_supported_outlined)),
                   )
-                : CachedNetworkImage(
-                    imageUrl: AppConfig.imageUrl(widget.p.image),
-                    fit: BoxFit.cover,
-                    placeholder: (context, url) => Shimmer.fromColors(
-                      baseColor: Colors.grey[300]!,
-                      highlightColor: Colors.grey[100]!,
-                      child: Container(color: Colors.white),
-                    ),
-                    errorWidget: (context, url, error) => const ColoredBox(
-                      color: Color(0x11000000),
-                      child: Center(
-                        child: Icon(Icons.image_not_supported_outlined),
-                      ),
-                    ),
-                  ),
+                : heroImage(AppConfig.imageUrl(widget.p.image)),
           ),
         ),
       );
@@ -767,6 +767,8 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                                 enlargeCenterPage: false,
                                 enableInfiniteScroll: mediaItems.length > 1,
                                 viewportFraction: 1.0,
+                                padEnds: false,
+                                autoPlay: false,
                                 onPageChanged: (index, reason) {
                                   setState(() => _current = index);
                                 },

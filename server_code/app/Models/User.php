@@ -39,6 +39,31 @@ class User extends Authenticatable
      */
     protected $hidden = ['password', 'remember_token'];
 
+    public function fcmTokens()
+    {
+        return $this->hasMany(UserFcmToken::class, 'user_id', 'id');
+    }
+
+    /**
+     * Все FCM-токены пользователя (мульти-устройство) + legacy users.fcm_token.
+     *
+     * @return array<int, string>
+     */
+    public function allFcmTokens(): array
+    {
+        $tokens = $this->fcmTokens()
+            ->whereNotNull('fcm_token')
+            ->where('fcm_token', '!=', '')
+            ->pluck('fcm_token')
+            ->all();
+
+        if (!empty($this->fcm_token)) {
+            $tokens[] = $this->fcm_token;
+        }
+
+        return array_values(array_unique(array_filter($tokens)));
+    }
+
     public static function isPlaceholderEmail(?string $email): bool
     {
         return is_string($email) && str_ends_with($email, '@phone.ssboss.local');

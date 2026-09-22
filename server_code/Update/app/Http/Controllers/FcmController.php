@@ -3,16 +3,12 @@ namespace App\Http\Controllers;
 
 use App\Models\Helper\Response;
 use App\Models\Helper\Validation;
-use App\Models\User;
+use App\Models\UserFcmToken;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
 class FcmController extends Controller
 {
-    /**
-     * Регистрирует FCM токен для авторизованного пользователя
-     * POST /api/v1/user/fcm-token
-     */
     public function registerToken(Request $request)
     {
         try {
@@ -21,7 +17,6 @@ class FcmController extends Controller
                 'device_type' => 'nullable|string|in:android,ios',
             ]);
 
-            // Пользователь гарантированно авторизован через middleware auth:user
             $user = $request->user('user');
             
             if (!$user) {
@@ -29,12 +24,26 @@ class FcmController extends Controller
                 return response()->json(Validation::unauthorized());
             }
 
-            $user->fcm_token = $request->fcm_token;
+            $token = trim((string) $request->fcm_token);
+            $deviceType = $request->device_type ?: null;
+
+            // Мульти-устройство: Android и iPhone хранятся отдельно.
+            UserFcmToken::updateOrCreate(
+                ['fcm_token' => $token],
+                [
+                    'user_id' => $user->id,
+                    'device_type' => $deviceType,
+                ]
+            );
+
+            // Legacy-колонка: последний токен (для старого кода / совместимости).
+            $user->fcm_token = $token;
             $user->save();
 
             \Log::info("FCM token updated for user {$user->id}", [
-                'device_type' => $request->device_type ?? 'unknown',
-                'email' => $user->email
+                'device_type' => $deviceType ?? 'unknown',
+                'email' => $user->email,
+                'tokens_count' => $user->fcmTokens()->count(),
             ]);
 
             return response()->json(new Response($request->token ?? '', [
@@ -50,17 +59,26 @@ class FcmController extends Controller
         }
     }
 
-    /**
-     * Удаляет FCM токен пользователя
-     */
     public function removeToken(Request $request)
     {
         try {
-            $user = Auth::user('user');
+            $user = $request->user('user') ?: Auth::guard('user')->user();
             
             if ($user) {
-                $user->fcm_token = null;
-                $user->save();
+                $token = trim((string) $request->input('fcm_token', ''));
+                if ($token !== '') {
+                    UserFcmToken::where('user_id', $user->id)
+                        ->where('fcm_token', $token)
+                        ->delete();
+                    if ($user->fcm_token === $token) {
+                        $user->fcm_token = UserFcmToken::where('user_id', $user->id)->value('fcm_token');
+                        $user->save();
+                    }
+                } else {
+                    UserFcmToken::where('user_id', $user->id)->delete();
+                    $user->fcm_token = null;
+                    $user->save();
+                }
 
                 \Log::info("FCM token removed for user {$user->id}");
 

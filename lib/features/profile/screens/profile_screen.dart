@@ -177,7 +177,6 @@ class _UserProfileViewState extends ConsumerState<_UserProfileView>
         ],
       ),
       extendBody: true,
-      bottomNavigationBar: const BottomNavigationBarWidget(selectedIndex: 4),
     );
   }
 
@@ -489,6 +488,13 @@ class _UserProfileViewState extends ConsumerState<_UserProfileView>
           title: l10n.tr('profile.my_orders'),
           subtitle: l10n.tr('profile.my_orders_sub'),
           onTap: () => context.push('/orders'),
+        ),
+        const SizedBox(height: 12),
+        _buildProfileCard(
+          icon: Icons.notifications_outlined,
+          title: l10n.tr('profile.notifications'),
+          subtitle: l10n.tr('profile.notifications_sub'),
+          onTap: () => context.push('/notification-settings'),
         ),
         const SizedBox(height: 12),
         _buildProfileCard(

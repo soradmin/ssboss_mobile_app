@@ -92,8 +92,9 @@ class PushNotificationService
                     'token_preview' => substr($fcmToken, 0, 20) . '...'
                 ]);
                 
-                // Найти пользователя с этим токеном и удалить токен
+                // Найти и удалить недействительный токен (таблица устройств + legacy)
                 try {
+                    \App\Models\UserFcmToken::where('fcm_token', $fcmToken)->delete();
                     User::where('fcm_token', $fcmToken)->update(['fcm_token' => null]);
                     Log::info('PushNotificationService: Недействительный токен удален из базы данных');
                 } catch (\Exception $dbEx) {
@@ -123,11 +124,21 @@ class PushNotificationService
     {
         $user = $order->user;
 
-        if (!$user || !$user->fcm_token) {
-            Log::warning('PushNotificationService: Пропущена отправка статуса заказа - нет пользователя или токена', [
+        if (!$user) {
+            Log::warning('PushNotificationService: Пропущена отправка статуса заказа - нет пользователя', [
                 'order_id' => $order->id,
-                'user_id' => $user->id ?? null,
-                'has_token' => $user && $user->fcm_token ? true : false
+            ]);
+            return false;
+        }
+
+        $tokens = method_exists($user, 'allFcmTokens')
+            ? $user->allFcmTokens()
+            : array_filter([(string) ($user->fcm_token ?? '')]);
+
+        if (empty($tokens)) {
+            Log::warning('PushNotificationService: Пропущена отправка статуса заказа - нет токенов', [
+                'order_id' => $order->id,
+                'user_id' => $user->id,
             ]);
             return false;
         }
@@ -143,7 +154,14 @@ class PushNotificationService
             'type' => 'order_status',
         ];
 
-        return $this->sendToUser($user->fcm_token, $title, $body, $data);
+        $ok = false;
+        foreach ($tokens as $token) {
+            if ($this->sendToUser($token, $title, $body, $data)) {
+                $ok = true;
+            }
+        }
+
+        return $ok;
     }
 
     /**
@@ -157,33 +175,42 @@ class PushNotificationService
      */
     public function sendToAllUsers(string $title, string $body, array $data = [], ?int $limit = null): array
     {
-        $query = User::whereNotNull('fcm_token')
+        $tokenQuery = \App\Models\UserFcmToken::query()
+            ->whereNotNull('fcm_token')
             ->where('fcm_token', '!=', '');
 
         if ($limit) {
-            $query->limit($limit);
+            $tokenQuery->limit($limit);
         }
 
-        $users = $query->get(['id', 'fcm_token', 'email']);
-        $total = $users->count();
+        $deviceTokens = $tokenQuery->pluck('fcm_token')->all();
+
+        // Legacy users.fcm_token
+        $legacyQuery = User::whereNotNull('fcm_token')->where('fcm_token', '!=', '');
+        if ($limit) {
+            $legacyQuery->limit($limit);
+        }
+        $legacyTokens = $legacyQuery->pluck('fcm_token')->all();
+
+        $tokens = array_values(array_unique(array_filter(array_merge($deviceTokens, $legacyTokens))));
+        $total = count($tokens);
         $sent = 0;
         $failed = 0;
 
         Log::info('PushNotificationService: Начало массовой рассылки', [
-            'total_users' => $total,
+            'total_tokens' => $total,
             'title' => $title
         ]);
 
-        foreach ($users as $user) {
-            if ($this->sendToUser($user->fcm_token, $title, $body, $data)) {
+        foreach ($tokens as $token) {
+            if ($this->sendToUser($token, $title, $body, $data)) {
                 $sent++;
             } else {
                 $failed++;
             }
 
-            // Небольшая задержка, чтобы не перегружать Firebase
             if ($sent % 100 === 0) {
-                usleep(100000); // 0.1 секунды каждые 100 уведомлений
+                usleep(100000);
             }
         }
 
@@ -263,11 +290,9 @@ class PushNotificationService
         $map = [
             Config::get('constants.orderStatus.PENDING') => 'Ожидает обработки',
             Config::get('constants.orderStatus.CONFIRMED') => 'Подтверждён',
-            Config::get('constants.orderStatus.SHIPPED') => 'Отправлен',
+            Config::get('constants.orderStatus.PICKED_UP') => 'Собран',
+            Config::get('constants.orderStatus.ON_THE_WAY') => 'В пути',
             Config::get('constants.orderStatus.DELIVERED') => 'Доставлен',
-            Config::get('constants.orderStatus.CANCELLED') => 'Отменён',
-            Config::get('constants.orderStatus.REFUNDED') => 'Возвращён',
-            Config::get('constants.orderStatus.FAILED') => 'Неудачный',
         ];
 
         return $map[$statusId] ?? 'Обновлён';

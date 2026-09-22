@@ -16,6 +16,10 @@
 
     RewriteEngine On
 
+    # Лицензия iShop привязана к ssboss.shop без www (старая версия скрипта).
+    RewriteCond %{HTTP_HOST} ^www\.ssboss\.shop$ [NC]
+    RewriteRule ^(.*)$ https://ssboss.shop/$1 [L,R=301]
+
     # Handle Authorization Header
     RewriteCond %{HTTP:Authorization} .
     RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]

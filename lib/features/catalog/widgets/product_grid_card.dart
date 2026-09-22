@@ -102,7 +102,16 @@ class ProductGridCard extends ConsumerWidget {
       alignment: Alignment.topCenter,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTap: () => context.push('/product/${product.id}', extra: product),
+        onTap: () {
+          final url = imageUrl;
+          if (url.isNotEmpty) {
+            // Прогрев кэша до перехода — PDP открывается без «прыжка» картинки.
+            unawaited(
+              precacheImage(CachedNetworkImageProvider(url), context),
+            );
+          }
+          context.push('/product/${product.id}', extra: product);
+        },
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
@@ -123,19 +132,19 @@ class ProductGridCard extends ConsumerWidget {
                               fit: BoxFit.cover,
                               width: double.infinity,
                               height: double.infinity,
-                              // Ограничиваем декод в RAM — иначе iOS убивает приложение
-                              // при длинном скролле каталога (full-res JPEG × десятки карточек).
+                              // Декод в RAM ограничиваем; на диск — полный файл,
+                              // чтобы PDP открывался из кэша без повторной загрузки.
                               memCacheWidth: (MediaQuery.devicePixelRatioOf(context) *
                                       (MediaQuery.sizeOf(context).width / 2))
                                   .round()
-                                  .clamp(160, 480),
+                                  .clamp(160, 720),
                               memCacheHeight: (MediaQuery.devicePixelRatioOf(context) *
                                       (MediaQuery.sizeOf(context).width / 2) /
                                       ProductGridCard.imageAspectRatio)
                                   .round()
-                                  .clamp(200, 640),
-                              maxWidthDiskCache: 480,
-                              maxHeightDiskCache: 640,
+                                  .clamp(200, 960),
+                              fadeInDuration: Duration.zero,
+                              fadeOutDuration: Duration.zero,
                               placeholder: (context, url) =>
                                   const _ProductGridImageShimmer(),
                               errorWidget: (context, url, error) =>

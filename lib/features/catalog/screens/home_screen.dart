@@ -22,6 +22,7 @@ import '../models/home_page_data.dart';
 import '../models/flash_sale.dart';
 import '../widgets/product_grid_card.dart';
 import '../providers/content_cache.dart';
+import '../utils/promo_navigation.dart';
 import '../../personalization/user_preference_service.dart';
 import '../../../core/result.dart';         // Ok/Err
 import '../../cart/repo/cart_api.dart';    // серверная корзина
@@ -785,7 +786,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           ],
         ),
       ),
-      bottomNavigationBar: const BottomNavigationBarWidget(selectedIndex: 0),
     );
   }
 
@@ -1226,15 +1226,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         itemBuilder: (context, index, realIndex) {
           final banner = banners[index];
           return GestureDetector(
-            onTap: () {
-              if (banner.url != null && banner.url!.isNotEmpty) {
-                print('[DEBUG] Переход по ссылке баннера: ${banner.url}');
-                // TODO: Реализовать переход по ссылке
-              } else if (banner.slug != null && banner.slug!.isNotEmpty) {
-                print('[DEBUG] Переход по slug баннера: ${banner.slug}');
-                // TODO: Реализовать переход по slug
-              }
-            },
+            onTap: () => PromoNavigation.openBanner(context, banner),
             child: Container(
               width: bannerWidth,
               height: bannerHeight,
@@ -1499,15 +1491,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     final cacheHeight = (bannerHeight * dpr).round();
     
     return GestureDetector(
-      onTap: () {
-        if (banner.url != null && banner.url!.isNotEmpty) {
-          print('[DEBUG] Переход по ссылке баннера 1600x800: ${banner.url}');
-          // TODO: Реализовать переход по ссылке
-        } else if (banner.slug != null && banner.slug!.isNotEmpty) {
-          print('[DEBUG] Переход по slug баннера 1600x800: ${banner.slug}');
-          // TODO: Реализовать переход по slug
-        }
-      },
+      onTap: () => PromoNavigation.openBanner(context, banner),
       child: Container(
         width: bannerWidth,
         height: bannerHeight,
@@ -1591,12 +1575,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         itemBuilder: (context, index, realIndex) {
           final slider = _sliders[index];
           return GestureDetector(
-            onTap: () {
-              if (slider.link != null && slider.link!.isNotEmpty) {
-                print('[DEBUG] Переход по ссылке слайдера: ${slider.link}');
-                // TODO: Реализовать переход по ссылке
-              }
-            },
+            onTap: () => PromoNavigation.openSlider(context, slider),
             child: Container(
               width: double.infinity,
               height: layout.height,
@@ -1760,7 +1739,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   }
 
   void _openCategoryProducts(Map<String, dynamic> category) {
-    final name = (category['name'] ?? category['title'] ?? context.tr('catalog.category')).toString();
+    final resolved = CatalogApi.resolveCategoryTitle(category);
+    final name = resolved.isNotEmpty
+        ? resolved
+        : (category['name'] ?? category['title'] ?? context.tr('catalog.category')).toString();
     final slug = category['slug']?.toString();
     final categoryId = category['id'] as int?;
     final categoryParam = (slug == null || slug.isEmpty)
@@ -1802,7 +1784,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             onAction: () => context.go('/catalog'),
           ),
           SizedBox(
-            height: 92,
+            height: 104,
             child: _categories.isEmpty
                 ? ListView.separated(
                     scrollDirection: Axis.horizontal,
@@ -1818,10 +1800,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                     separatorBuilder: (_, __) => const SizedBox(width: 14),
                     itemBuilder: (context, index) {
                       final category = _categories[index];
-                      final name = (category['name'] ??
-                              category['title'] ??
-                              context.tr('catalog.category'))
-                          .toString();
+                      final resolved = CatalogApi.resolveCategoryTitle(category);
+                      final name = resolved.isNotEmpty
+                          ? resolved
+                          : (category['name'] ??
+                                  category['title'] ??
+                                  context.tr('catalog.category'))
+                              .toString();
                       final image = category['image']?.toString();
                       final icon = category['icon'] as IconData?;
 
@@ -1830,6 +1815,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                         child: SizedBox(
                           width: 66,
                           child: Column(
+                            mainAxisSize: MainAxisSize.min,
                             children: [
                               Container(
                                 width: 60,
@@ -1865,14 +1851,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                                         size: 24,
                                       ),
                               ),
-                              const SizedBox(height: 7),
+                              const SizedBox(height: 6),
                               Text(
                                 name,
                                 style: const TextStyle(
-                                  fontSize: 11.5,
+                                  fontSize: 11,
                                   fontWeight: FontWeight.w500,
                                   color: _ink,
-                                  height: 1.15,
+                                  height: 1.1,
                                 ),
                                 textAlign: TextAlign.center,
                                 maxLines: 2,

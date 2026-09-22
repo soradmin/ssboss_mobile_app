@@ -19,6 +19,7 @@ use App\Models\Payment;
 use App\Models\Plugin;
 use App\Models\Setting;
 use App\Models\UpdatedInventory;
+use App\Models\User;
 use App\Models\UserAddress;
 use App\Models\Voucher;
 use Carbon\Carbon;
@@ -241,6 +242,7 @@ class OrdersController extends ControllerHelper
                     }
 
                     $item['calculated'] = Utils::calcPrice($item);
+                    Utils::enrichOrderAddressCustomerName($item);
 
                     unset($item['ordered_products']);
                     $item['ordered_products'] = $orderedProducts;
@@ -258,6 +260,7 @@ class OrdersController extends ControllerHelper
                     }
 
                     $item['calculated'] = Utils::calcPrice($item);
+                    Utils::enrichOrderAddressCustomerName($item);
 
                     unset($item['ordered_products']);
                     $item['ordered_products'] = $orderedProducts;
@@ -485,12 +488,14 @@ class OrdersController extends ControllerHelper
 
                     array_push($orderIds, $item->id);
                     $item['calculated'] = Utils::calcPrice($item);
+                    Utils::enrichOrderAddressCustomerName($item);
                     $item['created'] = Utils::formatDate(Utils::convertTimeToUSERzone($item->created_at, $request->time_zone));
                 }
             } else {
                 foreach ($data as $item) {
                     array_push($orderIds, $item->id);
                     $item['calculated'] = Utils::calcPrice($item);
+                    Utils::enrichOrderAddressCustomerName($item);
                     $item['created'] = Utils::formatDate($item->created_at);
                 }
             }
@@ -662,6 +667,8 @@ class OrdersController extends ControllerHelper
                 $order['created'] = Utils::formatDate($order->created_at);
             }
 
+            Utils::enrichOrderAddressCustomerName($order);
+
             return response()->json(new Response($request->token, $order));
 
         } catch (\Exception $ex) {
@@ -750,10 +757,6 @@ class OrdersController extends ControllerHelper
         try {
             $lang = $request->header('language');
 
-            if ($this->isVendor) {
-                return Utils::isDataOwner(null, null);
-            }
-
             if ($can = Utils::userCan($this->user, 'order.edit')) {
                 return $can;
             }
@@ -769,6 +772,11 @@ class OrdersController extends ControllerHelper
                 return response()->json(Validation::nothingFoundLang($lang));
             }
 
+            // Продавец может менять статус только своих заказов (есть его товары).
+            if ($this->isVendor && !$this->vendorOwnsOrder((int) $request->id)) {
+                return Utils::isDataOwner(null, null);
+            }
+
             $updatedStatus['status'] = $request->status;
 
             if ((int)Config::get('constants.orderStatus.DELIVERED') == (int)$request->status &&
@@ -777,6 +785,61 @@ class OrdersController extends ControllerHelper
             }
 
             Order::where('id', $request->id)->update($updatedStatus);
+
+            // Обновляем заказ для получения актуальных данных
+            $updatedOrder = Order::with(['user', 'address', 'guest_user'])->find($request->id);
+
+            // SMS покупателю об изменении статуса
+            if ($updatedOrder) {
+                try {
+                    app(\App\Services\OrderSmsService::class)
+                        ->notifyOrderStatusChanged($updatedOrder, (int) $request->status);
+                } catch (\Exception $smsEx) {
+                    \Log::error('OrdersController.updateStatus: ошибка SMS', [
+                        'order_id' => $request->id,
+                        'error' => $smsEx->getMessage(),
+                    ]);
+                }
+            }
+
+            // Отправляем push-уведомление пользователю (Android + iOS)
+            if ($updatedOrder && $updatedOrder->user) {
+                $tokens = method_exists($updatedOrder->user, 'allFcmTokens')
+                    ? $updatedOrder->user->allFcmTokens()
+                    : array_filter([(string) ($updatedOrder->user->fcm_token ?? '')]);
+
+                if (empty($tokens)) {
+                    \Log::warning('OrdersController.updateStatus: У пользователя нет FCM токенов', [
+                        'order_id' => $request->id,
+                        'user_id' => $updatedOrder->user_id,
+                        'user_email' => $updatedOrder->user->email
+                    ]);
+                } else {
+                    try {
+                        $pushService = app(\App\Services\PushNotificationService::class);
+                        $result = $pushService->sendOrderStatusUpdate($updatedOrder, $request->status);
+                        
+                        if ($result) {
+                            \Log::info('✅ OrdersController.updateStatus: Push-уведомление успешно отправлено', [
+                                'order_id' => $request->id,
+                                'user_id' => $updatedOrder->user_id,
+                                'status' => $request->status,
+                                'tokens' => count($tokens),
+                            ]);
+                        } else {
+                            \Log::warning('OrdersController.updateStatus: Не удалось отправить push-уведомление', [
+                                'order_id' => $request->id,
+                                'user_id' => $updatedOrder->user_id
+                            ]);
+                        }
+                    } catch (\Exception $pushEx) {
+                        \Log::error('OrdersController.updateStatus: Ошибка при отправке push-уведомления', [
+                            'order_id' => $request->id,
+                            'error' => $pushEx->getMessage()
+                        ]);
+                    }
+                }
+            }
 
             return response()->json(new Response($request->token, ['result' =>
                 [
@@ -1614,7 +1677,18 @@ class OrdersController extends ControllerHelper
 
                     $orderArr['user_id'] = $request->user('user')->id;
                     $orderArr['order'] = Utils::generateTrackingId(["user_id" => $request->user('user')->id]);
-                    $orderArr['user_address_id'] = $user->default_address;
+
+                    $addressId = $user->default_address;
+                    if (!$addressId) {
+                        $fallbackAddress = UserAddress::where('user_id', $user->id)
+                            ->orderByDesc('id')
+                            ->first();
+                        if ($fallbackAddress) {
+                            $addressId = $fallbackAddress->id;
+                            User::where('id', $user->id)->update(['default_address' => $addressId]);
+                        }
+                    }
+                    $orderArr['user_address_id'] = $addressId;
 
                 } else if ($request->user_token) {
 
@@ -1863,6 +1937,9 @@ class OrdersController extends ControllerHelper
                         Order::where('id', $order->id)->update([
                             'total_amount' => $totalPrice - $offeredVoucher,
                         ]);
+
+                        $this->sendOrderPlacedSms($order->id);
+
                         return response()->json(new Response($request->token, $order));
 
 
@@ -1872,6 +1949,9 @@ class OrdersController extends ControllerHelper
                         Order::where('id', $order->id)->update([
                             'total_amount' => $totalPrice - $offeredVoucher,
                         ]);
+
+                        $this->sendOrderPlacedSms($order->id);
+
                         return response()->json(new Response($request->token, $order));
 
 
@@ -1910,7 +1990,6 @@ class OrdersController extends ControllerHelper
                         Order::where('id', $order->id)->update([
                             'total_amount' => $totalPrice - $offeredVoucher,
                         ]);
-
 
                         $re['payfast'] = PayFast::getPayFastForm($payment, $order, $re, $totalPrice - $offeredVoucher);
 
@@ -2005,6 +2084,19 @@ class OrdersController extends ControllerHelper
             if ($mailData) {
                 $setting = $mailData['setting'];
                 $order = $mailData['order'];
+            }
+
+            // SMS покупателю и продавцам (независимо от email)
+            try {
+                $orderModel = Order::with(['user', 'address', 'guest_user'])->find($id);
+                if ($orderModel) {
+                    app(\App\Services\OrderSmsService::class)->notifyOrderPlaced($orderModel);
+                }
+            } catch (\Exception $smsEx) {
+                \Log::error('OrdersController.sendOrderEmail: ошибка SMS', [
+                    'order_id' => $id,
+                    'error' => $smsEx->getMessage(),
+                ]);
             }
 
             $userName = "";
@@ -2264,5 +2356,41 @@ class OrdersController extends ControllerHelper
         $pdf = PDF::loadView('mail_templates.order_pdf', ['order' => $order, 'setting' => $objDemo])
             ->setPaper('a4', 'potrait')->setWarnings(false);
         return $pdf->download('disney.pdf');
+    }
+
+    /**
+     * SMS покупателю и продавцам после оформления (ошибки не ломают заказ).
+     */
+    private function sendOrderPlacedSms(int $orderId): void
+    {
+        try {
+            $orderModel = Order::with(['user', 'address', 'guest_user'])->find($orderId);
+            if ($orderModel) {
+                app(\App\Services\OrderSmsService::class)->notifyOrderPlaced($orderModel);
+            }
+        } catch (\Exception $smsEx) {
+            \Log::error('OrdersController: ошибка SMS при оформлении', [
+                'order_id' => $orderId,
+                'error' => $smsEx->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * Заказ содержит хотя бы один товар этого продавца.
+     */
+    private function vendorOwnsOrder(int $orderId): bool
+    {
+        if (!$this->user) {
+            return false;
+        }
+
+        $adminId = $this->user->id;
+
+        return OrderedProduct::where('order_id', $orderId)
+            ->whereHas('product_with_admin', function ($query) use ($adminId) {
+                $query->where('admin_id', $adminId);
+            })
+            ->exists();
     }
 }

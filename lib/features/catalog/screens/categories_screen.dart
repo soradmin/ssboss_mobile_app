@@ -332,7 +332,6 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
       ),
       body: _buildBody(),
       extendBody: true,
-      bottomNavigationBar: const BottomNavigationBarWidget(selectedIndex: 1),
     );
   }
 
@@ -503,7 +502,11 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
               itemBuilder: (context, i) {
                 final category = _categories[i];
                 return _CategoryTile(
-                  name: (category['name'] ?? category['title'] ?? context.tr('catalog.category')).toString(),
+                  name: () {
+                    final resolved = CatalogApi.resolveCategoryTitle(category);
+                    if (resolved.isNotEmpty) return resolved;
+                    return (category['name'] ?? category['title'] ?? context.tr('catalog.category')).toString();
+                  }(),
                   subtitle: category['subtitle']?.toString(),
                   image: category['image']?.toString(),
                   productCount: category['product_count'] as int?,
@@ -816,7 +819,10 @@ class _CategorySearchDelegate extends SearchDelegate<String> {
           onTap: () {
             final categoryParam = category['slug']?.toString() ?? 
                 category['name']?.toString().toLowerCase().replaceAll(' ', '-') ?? 'unknown';
-            final categoryTitle = (category['name'] ?? category['title'] ?? context.tr('catalog.category')).toString();
+            final resolvedTitle = CatalogApi.resolveCategoryTitle(category);
+            final categoryTitle = resolvedTitle.isNotEmpty
+                ? resolvedTitle
+                : (category['name'] ?? category['title'] ?? context.tr('catalog.category')).toString();
             final categoryId = category['id'] as int?;
             final queryParams = <String, String>{
               'category': categoryParam,
@@ -876,7 +882,11 @@ class _CategorySearchDelegate extends SearchDelegate<String> {
                     fit: BoxFit.scaleDown,
                     alignment: Alignment.centerLeft,
                     child: Text(
-                      (category['name'] ?? category['title'] ?? context.tr('catalog.category')).toString(),
+                      () {
+                        final resolved = CatalogApi.resolveCategoryTitle(category);
+                        if (resolved.isNotEmpty) return resolved;
+                        return (category['name'] ?? category['title'] ?? context.tr('catalog.category')).toString();
+                      }(),
                       style: const TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,

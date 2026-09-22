@@ -185,19 +185,38 @@ class PaymentApi {
         final allAddresses =
             addressResult is Ok<List<Address>> ? addressResult.value : <Address>[];
         final profileDefaultId = _parseProfileDefaultAddressId(userData);
-        final serverAddressId = _resolveSelectedAddressForServer(
+        var serverAddressId = _resolveSelectedAddressForServer(
           selectedAddress,
           allAddresses,
           profileDefaultAddress: profileDefaultId,
         );
         print(
-          '[DEBUG] PaymentApi.createOrder: serverAddressId для заказа = $serverAddressId (profile default=$profileDefaultId)',
+          '[DEBUG] PaymentApi.createOrder: serverAddressId (resolve) = $serverAddressId (profile default=$profileDefaultId)',
         );
+
+        // Самовывоз: серверу всё равно нужен user_address_id. Если в профиле нет
+        // адресов — создаём служебный адрес по данным пункта выдачи.
+        if ((serverAddressId == null || serverAddressId <= 0) &&
+            (selectedAddress.isLocalPickup ||
+                selectedAddress.type == 'pickup' ||
+                effectiveDeliveryType == 'pickup')) {
+          print(
+            '[DEBUG] PaymentApi.createOrder: нет адреса в профиле — создаём служебный для самовывоза',
+          );
+          serverAddressId = await _ensurePickupCheckoutAddress(
+            addressApi: addressApi,
+            pickup: selectedAddress,
+            userData: userData!,
+          );
+          print(
+            '[DEBUG] PaymentApi.createOrder: serverAddressId после create = $serverAddressId',
+          );
+        }
 
         if (serverAddressId == null || serverAddressId <= 0) {
           return const Err(
-            'Для оформления заказа нужен адрес в профиле. '
-            'Добавьте адрес доставки в профиле или выберите сохранённый адрес, затем повторите заказ.',
+            'Для доставки курьером добавьте адрес в профиле. '
+            'Для самовывоза выберите пункт выдачи и повторите заказ.',
           );
         }
 
@@ -783,8 +802,15 @@ class PaymentApi {
   static int? _parseProfileDefaultAddressId(Map<String, dynamic>? profile) {
     if (profile == null) return null;
     final raw = profile['default_address'] ?? profile['defaultAddress'];
-    if (raw is int && raw > 0) return raw;
-    if (raw is String) return int.tryParse(raw);
+    int? id;
+    if (raw is int) {
+      id = raw;
+    } else if (raw is num) {
+      id = raw.toInt();
+    } else if (raw is String) {
+      id = int.tryParse(raw.trim());
+    }
+    if (id != null && id > 0) return id;
     return null;
   }
 
@@ -795,11 +821,11 @@ class PaymentApi {
     int? profileDefaultAddress,
   }) {
     if (!selected.isLocalPickup) {
-      return selected.serverAddressId;
+      final direct = selected.serverAddressId;
+      if (direct != null && direct > 0) return direct;
     }
 
-    // Самовывоз: shipping_type=2, но user_address_id всё равно обязателен в БД.
-    // Берём default_address из профиля даже если список адресов не загрузился (часто на iOS).
+    // Самовывоз / запасной вариант: любой валидный адрес пользователя.
     if (profileDefaultAddress != null && profileDefaultAddress > 0) {
       return profileDefaultAddress;
     }
@@ -833,6 +859,73 @@ class PaymentApi {
       return anyServerId.first;
     }
 
+    return null;
+  }
+
+  /// Создаёт (или берёт) user_address для оформления самовывоза.
+  static Future<int?> _ensurePickupCheckoutAddress({
+    required AddressApi addressApi,
+    required Address pickup,
+    required Map<String, dynamic> userData,
+  }) async {
+    try {
+      // Повторно читаем адреса — мог появиться после прошлой попытки.
+      final refresh = await addressApi.getAddresses();
+      if (refresh is Ok<List<Address>>) {
+        final existing = refresh.value
+            .map((a) => a.serverAddressId)
+            .whereType<int>()
+            .where((id) => id > 0)
+            .toList();
+        if (existing.isNotEmpty) {
+          return existing.first;
+        }
+      }
+
+      final name = (userData['name']?.toString().trim().isNotEmpty == true)
+          ? userData['name'].toString().trim()
+          : 'Покупатель';
+      var email = userData['email']?.toString().trim() ?? '';
+      var phone = userData['phone']?.toString().trim() ?? '';
+      if (phone.isEmpty) {
+        phone = pickup.phone?.trim() ?? '';
+      }
+      if (phone.isEmpty) {
+        phone = '900000000';
+      }
+      if (email.isEmpty) {
+        final digits = phone.replaceAll(RegExp(r'\D'), '');
+        email = '${digits.isNotEmpty ? digits : 'guest'}@phone.ssboss.local';
+      }
+
+      final created = await addressApi.createAddress(
+        name: name,
+        address: pickup.address.isNotEmpty
+            ? pickup.address
+            : 'Пункт выдачи SSBOSS',
+        city: pickup.city.isNotEmpty ? pickup.city : 'Душанбе',
+        region: pickup.region ?? 'РРП',
+        postalCode: pickup.postalCode ?? '734000',
+        phone: phone,
+        email: email,
+        country: (pickup.country != null && pickup.country!.length == 2)
+            ? pickup.country!
+            : 'TJ',
+        type: 'delivery',
+      );
+
+      if (created is Ok<Address>) {
+        final id = created.value.serverAddressId;
+        if (id != null && id > 0) return id;
+        if (created.value.id > 0) return created.value.id;
+      } else {
+        print(
+          '[ERROR] PaymentApi._ensurePickupCheckoutAddress: ${(created as Err).message}',
+        );
+      }
+    } catch (e) {
+      print('[ERROR] PaymentApi._ensurePickupCheckoutAddress: $e');
+    }
     return null;
   }
 }

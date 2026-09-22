@@ -327,8 +327,9 @@ class _ShippingScreenState extends ConsumerState<ShippingScreen> {
     final cartItems = ref.watch(cartProvider);
     final totalQuantity = cartItems.fold(0, (sum, item) => sum + item.qty);
     final totalAmount = cartItems.fold(0.0, (sum, item) => sum + item.subtotal);
+    final bottomPad = BottomNavigationBarWidget.occupiedHeight(context) + 16;
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16.0),
+      padding: EdgeInsets.fromLTRB(16, 16, 16, bottomPad),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -353,12 +354,16 @@ class _ShippingScreenState extends ConsumerState<ShippingScreen> {
                   color: theme.colorScheme.primary,
                 ),
                 const SizedBox(width: 12),
-                Text(
-                  totalQuantity > 0 
-                    ? '$totalQuantity ${_getQuantityText(totalQuantity)}, ${totalAmount.toStringAsFixed(2)} ${context.tr('common.currency')}'
-                    : context.tr('checkout.cart_empty'),
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
+                Expanded(
+                  child: Text(
+                    totalQuantity > 0
+                        ? '$totalQuantity ${_getQuantityText(totalQuantity)}, ${totalAmount.toStringAsFixed(2)} ${context.tr('common.currency')}'
+                        : context.tr('checkout.cart_empty'),
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ],
@@ -373,6 +378,8 @@ class _ShippingScreenState extends ConsumerState<ShippingScreen> {
             style: theme.textTheme.headlineSmall?.copyWith(
               fontWeight: FontWeight.bold,
             ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
           ),
           const SizedBox(height: 16),
           
@@ -402,7 +409,10 @@ class _ShippingScreenState extends ConsumerState<ShippingScreen> {
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 300),
                           curve: Curves.easeInOut,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          padding: const EdgeInsets.symmetric(
+                            vertical: 14,
+                            horizontal: 8,
+                          ),
                           decoration: BoxDecoration(
                             gradient: selectedDeliveryType == 'pickup'
                                 ? const LinearGradient(
@@ -434,6 +444,8 @@ class _ShippingScreenState extends ConsumerState<ShippingScreen> {
                               Text(
                                 context.tr('checkout.pickup'),
                                 textAlign: TextAlign.center,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
                                   color: selectedDeliveryType == 'pickup'
                                       ? Colors.white
@@ -441,7 +453,8 @@ class _ShippingScreenState extends ConsumerState<ShippingScreen> {
                                   fontWeight: selectedDeliveryType == 'pickup'
                                       ? FontWeight.bold
                                       : FontWeight.normal,
-                                  fontSize: 15,
+                                  fontSize: 14,
+                                  height: 1.2,
                                 ),
                               ),
                               if (selectedDeliveryType == 'pickup') ...[
@@ -449,6 +462,8 @@ class _ShippingScreenState extends ConsumerState<ShippingScreen> {
                                 Text(
                                   context.tr('checkout.free'),
                                   textAlign: TextAlign.center,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                   style: TextStyle(
                                     color: Colors.white.withOpacity(0.9),
                                     fontSize: 12,
@@ -483,7 +498,10 @@ class _ShippingScreenState extends ConsumerState<ShippingScreen> {
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 300),
                           curve: Curves.easeInOut,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          padding: const EdgeInsets.symmetric(
+                            vertical: 14,
+                            horizontal: 8,
+                          ),
                           decoration: BoxDecoration(
                             gradient: selectedDeliveryType == 'delivery'
                                 ? const LinearGradient(
@@ -515,6 +533,8 @@ class _ShippingScreenState extends ConsumerState<ShippingScreen> {
                               Text(
                                 context.tr('checkout.courier'),
                                 textAlign: TextAlign.center,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
                                   color: selectedDeliveryType == 'delivery'
                                       ? Colors.white
@@ -522,21 +542,10 @@ class _ShippingScreenState extends ConsumerState<ShippingScreen> {
                                   fontWeight: selectedDeliveryType == 'delivery'
                                       ? FontWeight.bold
                                       : FontWeight.normal,
-                                  fontSize: 15,
+                                  fontSize: 14,
+                                  height: 1.2,
                                 ),
                               ),
-                              if (selectedDeliveryType == 'delivery') ...[
-                                const SizedBox(height: 4),
-                                Text(
-                                  '20 см',
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    color: Colors.white.withOpacity(0.9),
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ],
                             ],
                           ),
                         ),
@@ -592,7 +601,14 @@ class _ShippingScreenState extends ConsumerState<ShippingScreen> {
                 ),
                 child: Text(
                   context.tr('checkout.go_to_payment'),
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  softWrap: true,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    height: 1.2,
+                  ),
                 ),
               ),
             ),

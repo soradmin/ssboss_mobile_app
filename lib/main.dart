@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import 'core/config.dart';
 import 'core/network/network_banner.dart';
 import 'core/network/network_status.dart';
@@ -25,8 +24,8 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Ограничиваем кэш декодированных изображений (особенно важно для iOS).
-  PaintingBinding.instance.imageCache.maximumSize = 80;
-  PaintingBinding.instance.imageCache.maximumSizeBytes = 48 << 20; // 48 MB
+  PaintingBinding.instance.imageCache.maximumSize = 120;
+  PaintingBinding.instance.imageCache.maximumSizeBytes = 64 << 20; // 64 MB
 
   // Android 15+: явный edge-to-edge вместо нестабильного режима по умолчанию (Play Console).
   if (!kIsWeb && Platform.isAndroid) {

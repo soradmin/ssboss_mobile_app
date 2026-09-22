@@ -10,7 +10,6 @@ import '../models/order.dart';
 import '../repo/order_api.dart';
 import '../order_action_limit_service.dart';
 import '../../catalog/repo/catalog_api.dart';
-import '../../catalog/models/product.dart';
 import '../../../core/result.dart';
 
 class OrderDetailsScreen extends ConsumerStatefulWidget {
@@ -396,7 +395,12 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
         ],
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 20.0),
+        padding: EdgeInsets.fromLTRB(
+          16,
+          20,
+          16,
+          BottomNavigationBarWidget.occupiedHeight(context) + 20,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -429,7 +433,6 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
               const SizedBox(height: 16),
               _buildLimitReachedInfo(),
             ],
-            const SizedBox(height: 20),
           ],
         ),
       ),
@@ -1419,6 +1422,22 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
                       ),
                     ],
                   ),
+                  if (_order!.isDelivered) ...[
+                    const SizedBox(height: 10),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        onPressed: () => _showWriteReview(item),
+                        icon: const Icon(Icons.star_outline, size: 18),
+                        label: Text(context.tr('orders.write_review')),
+                        style: TextButton.styleFrom(
+                          foregroundColor: const Color(0xFF9C27B0),
+                          padding: EdgeInsets.zero,
+                          visualDensity: VisualDensity.compact,
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -1433,6 +1452,112 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _showWriteReview(OrderItem item) async {
+    var rating = 5;
+    final commentCtrl = TextEditingController();
+    final submitted = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setModal) {
+            return Padding(
+              padding: EdgeInsets.fromLTRB(
+                20,
+                16,
+                20,
+                20 + MediaQuery.viewInsetsOf(ctx).bottom,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    context.tr('orders.write_review'),
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(item.name, maxLines: 2, overflow: TextOverflow.ellipsis),
+                  const SizedBox(height: 8),
+                  Text(
+                    context.tr('orders.review_hint'),
+                    style: TextStyle(color: Colors.grey[600]),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: List.generate(5, (i) {
+                      final star = i + 1;
+                      return IconButton(
+                        onPressed: () => setModal(() => rating = star),
+                        icon: Icon(
+                          star <= rating ? Icons.star_rounded : Icons.star_border_rounded,
+                          color: const Color(0xFFFFC107),
+                          size: 32,
+                        ),
+                      );
+                    }),
+                  ),
+                  TextField(
+                    controller: commentCtrl,
+                    maxLines: 3,
+                    decoration: InputDecoration(
+                      labelText: context.tr('orders.review_comment'),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  FilledButton(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFF9C27B0),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    onPressed: () => Navigator.pop(ctx, true),
+                    child: Text(context.tr('orders.send_review')),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    if (submitted != true || !mounted || _order == null) {
+      commentCtrl.dispose();
+      return;
+    }
+
+    final result = await ref.read(orderApiProvider).rateProduct(
+      _order!.id,
+      item.productId,
+      rating,
+      commentCtrl.text.trim(),
+    );
+    commentCtrl.dispose();
+    if (!mounted) return;
+    if (result is Ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(context.tr('orders.review_sent')),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text((result as Err).message),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   Widget _buildOrderSummary() {
