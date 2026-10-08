@@ -598,7 +598,11 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
       // Миниатюры для индикатора
       thumbnailItems.add(
         GestureDetector(
-          onTap: () => _carouselController.animateToPage(i, duration: const Duration(milliseconds: 300), curve: Curves.linear),
+          onTap: () => _carouselController.animateToPage(
+            i,
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOutCubic,
+          ),
           child: Container(
             margin: const EdgeInsets.symmetric(horizontal: 4),
             width: 60,
@@ -672,7 +676,11 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
       // Миниатюра для видео
       thumbnailItems.add(
         GestureDetector(
-          onTap: () => _carouselController.animateToPage(videoIndex, duration: const Duration(milliseconds: 300), curve: Curves.linear),
+          onTap: () => _carouselController.animateToPage(
+            videoIndex,
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOutCubic,
+          ),
           child: Container(
             margin: const EdgeInsets.symmetric(horizontal: 4),
             width: 60,

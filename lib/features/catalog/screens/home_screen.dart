@@ -44,37 +44,23 @@ final cartTotalQuantityProvider = Provider<int>((ref) {
 
 /// Показывает bottom sheet для выбора атрибутов товара
 Future<void> _showAttributeSelectionBottomSheet(BuildContext context, WidgetRef ref, Product product) async {
-  // Всегда загружаем детали товара, чтобы получить актуальные атрибуты
+  // Всегда загружаем детали товара, чтобы получить актуальные атрибуты.
+  // Без showDialog: диалог + glass/blur нижнего меню на части устройств
+  // заливал весь экран чёрным до перезапуска приложения.
   Product productWithAttributes = product;
-  
-  // Показываем индикатор загрузки
-  if (context.mounted) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const Center(
-        child: CircularProgressIndicator(),
-      ),
-    );
-  }
-  
-  // Загружаем детали товара
+
   final result = await _api.productById(product.id);
-  
-  // Закрываем индикатор загрузки
-  if (context.mounted) {
-    Navigator.of(context).pop();
-  }
-  
+
   result.when(
     ok: (loadedProduct) {
       productWithAttributes = loadedProduct;
     },
     err: (error) {
       print('[DEBUG] HomeScreen: Ошибка загрузки деталей товара: $error');
-      // Если не удалось загрузить, используем исходный товар
     },
   );
+
+  if (!context.mounted) return;
 
   // Если атрибутов нет, добавляем без выбора
   if (productWithAttributes.attributes.isEmpty) {
@@ -91,33 +77,33 @@ Future<void> _showAttributeSelectionBottomSheet(BuildContext context, WidgetRef 
   }
 
   // Показываем bottom sheet для выбора атрибутов
-  if (context.mounted) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: false,
-      backgroundColor: Colors.transparent,
-      builder: (context) => _AttributeSelectionBottomSheet(
-        product: productWithAttributes,
-        onAddToCart: (selectedAttributes) async {
-          // Добавляем товар в корзину с выбранными атрибутами (синхронизация с сервером)
-          await ref.read(cartProvider.notifier).addToCartWithSync(
-            productWithAttributes,
-            1,
-            selectedAttributes: selectedAttributes,
+  await showModalBottomSheet(
+    context: context,
+    useRootNavigator: true,
+    isScrollControlled: false,
+    backgroundColor: Colors.transparent,
+    builder: (sheetContext) => _AttributeSelectionBottomSheet(
+      product: productWithAttributes,
+      onAddToCart: (selectedAttributes) async {
+        await ref.read(cartProvider.notifier).addToCartWithSync(
+          productWithAttributes,
+          1,
+          selectedAttributes: selectedAttributes,
+        );
+        if (sheetContext.mounted) {
+          Navigator.of(sheetContext).pop();
+        }
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(context.tr('home.added_to_cart')),
+              duration: const Duration(milliseconds: 900),
+            ),
           );
-          if (context.mounted) {
-            Navigator.of(context).pop(); // Закрываем bottom sheet
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(context.tr('home.added_to_cart')),
-                duration: const Duration(milliseconds: 900),
-              ),
-            );
-          }
-        },
-      ),
-    );
-  }
+        }
+      },
+    ),
+  );
 }
 
 class HomeScreen extends ConsumerStatefulWidget {

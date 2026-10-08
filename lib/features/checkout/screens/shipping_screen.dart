@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/motion/app_motion.dart';
 import '../../../core/widgets/bottom_navigation_bar.dart';
+import '../../../core/widgets/pressable_scale.dart';
 import '../../../core/l10n/locale_controller.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../auth/screens/login_screen.dart';
@@ -327,7 +330,7 @@ class _ShippingScreenState extends ConsumerState<ShippingScreen> {
     final cartItems = ref.watch(cartProvider);
     final totalQuantity = cartItems.fold(0, (sum, item) => sum + item.qty);
     final totalAmount = cartItems.fold(0.0, (sum, item) => sum + item.subtotal);
-    final bottomPad = BottomNavigationBarWidget.occupiedHeight(context) + 16;
+    final bottomPad = BottomNavigationBarWidget.contentBottomPadding(context);
     return SingleChildScrollView(
       padding: EdgeInsets.fromLTRB(16, 16, 16, bottomPad),
       child: Column(
@@ -393,12 +396,13 @@ class _ShippingScreenState extends ConsumerState<ShippingScreen> {
               children: [
                 Expanded(
                   child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 300),
-                    curve: Curves.easeInOut,
+                    duration: AppMotion.chip,
+                    curve: AppMotion.easeOut,
                     child: Material(
                       color: Colors.transparent,
                       child: InkWell(
                         onTap: () {
+                          HapticFeedback.selectionClick();
                           setState(() {
                             selectedDeliveryType = 'pickup';
                             final pickups = addresses.where((a) => a.type == 'pickup');
@@ -407,8 +411,8 @@ class _ShippingScreenState extends ConsumerState<ShippingScreen> {
                         },
                         borderRadius: BorderRadius.circular(16),
                         child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 300),
-                          curve: Curves.easeInOut,
+                          duration: AppMotion.chip,
+                          curve: AppMotion.easeOut,
                           padding: const EdgeInsets.symmetric(
                             vertical: 14,
                             horizontal: 8,
@@ -480,12 +484,13 @@ class _ShippingScreenState extends ConsumerState<ShippingScreen> {
                 ),
                 Expanded(
                   child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 300),
-                    curve: Curves.easeInOut,
+                    duration: AppMotion.chip,
+                    curve: AppMotion.easeOut,
                     child: Material(
                       color: Colors.transparent,
                       child: InkWell(
                         onTap: () {
+                          HapticFeedback.selectionClick();
                           setState(() {
                             selectedDeliveryType = 'delivery';
                             final deliveries =
@@ -496,8 +501,8 @@ class _ShippingScreenState extends ConsumerState<ShippingScreen> {
                         },
                         borderRadius: BorderRadius.circular(16),
                         child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 300),
-                          curve: Curves.easeInOut,
+                          duration: AppMotion.chip,
+                          curve: AppMotion.easeOut,
                           padding: const EdgeInsets.symmetric(
                             vertical: 14,
                             horizontal: 8,
@@ -569,9 +574,11 @@ class _ShippingScreenState extends ConsumerState<ShippingScreen> {
           const SizedBox(height: 32),
           
           // Кнопка продолжения
-          SizedBox(
-            width: double.infinity,
+          PressableScale(
+            onTap: totalQuantity > 0 ? _proceedToPayment : null,
             child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
               decoration: BoxDecoration(
                 gradient: totalQuantity > 0
                     ? const LinearGradient(
@@ -587,28 +594,17 @@ class _ShippingScreenState extends ConsumerState<ShippingScreen> {
                 color: totalQuantity == 0 ? Colors.grey[300] : null,
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: ElevatedButton(
-                onPressed: totalQuantity > 0 ? _proceedToPayment : null,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.transparent,
-                  shadowColor: Colors.transparent,
-                  foregroundColor: Colors.white,
-                  disabledForegroundColor: Colors.grey[600],
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                child: Text(
-                  context.tr('checkout.go_to_payment'),
-                  textAlign: TextAlign.center,
-                  maxLines: 2,
-                  softWrap: true,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
-                    height: 1.2,
-                  ),
+              child: Text(
+                context.tr('checkout.go_to_payment'),
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                softWrap: true,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  height: 1.2,
+                  color: totalQuantity > 0 ? Colors.white : Colors.grey[600],
                 ),
               ),
             ),
@@ -772,21 +768,22 @@ class _ShippingScreenState extends ConsumerState<ShippingScreen> {
     final isSelected = selectedAddress?.id == address.id;
     
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeInOut,
+      duration: AppMotion.chip,
+      curve: AppMotion.easeOut,
       margin: const EdgeInsets.only(bottom: 12),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
           onTap: () {
+            HapticFeedback.selectionClick();
             setState(() {
               selectedAddress = address;
             });
           },
           borderRadius: BorderRadius.circular(16),
           child: AnimatedContainer(
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeInOut,
+            duration: AppMotion.chip,
+            curve: AppMotion.easeOut,
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               gradient: isSelected
@@ -849,10 +846,14 @@ class _ShippingScreenState extends ConsumerState<ShippingScreen> {
                     children: [
                       Text(
                         address.name,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        softWrap: true,
                         style: theme.textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.bold,
                           color: isSelected ? Colors.white : theme.colorScheme.onSurface,
                           fontSize: 16,
+                          height: 1.25,
                         ),
                       ),
                       const SizedBox(height: 6),
@@ -863,8 +864,9 @@ class _ShippingScreenState extends ConsumerState<ShippingScreen> {
                               ? Colors.white.withOpacity(0.9)
                               : theme.colorScheme.onSurfaceVariant,
                           fontSize: 13,
+                          height: 1.3,
                         ),
-                        maxLines: 2,
+                        maxLines: 3,
                         overflow: TextOverflow.ellipsis,
                       ),
                       if (address.phone != null) ...[
@@ -879,13 +881,17 @@ class _ShippingScreenState extends ConsumerState<ShippingScreen> {
                                   : theme.colorScheme.onSurfaceVariant,
                             ),
                             const SizedBox(width: 4),
-                            Text(
-                              address.phone!,
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: isSelected
-                                    ? Colors.white.withOpacity(0.8)
-                                    : theme.colorScheme.onSurfaceVariant,
-                                fontSize: 12,
+                            Expanded(
+                              child: Text(
+                                address.phone!,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: isSelected
+                                      ? Colors.white.withOpacity(0.8)
+                                      : theme.colorScheme.onSurfaceVariant,
+                                  fontSize: 12,
+                                ),
                               ),
                             ),
                           ],

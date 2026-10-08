@@ -1,0 +1,25 @@
+---
+description: Use Emil Kowalski design/animation skills for UI and motion work
+globs:
+  - lib/**/*.dart
+alwaysApply: false
+---
+
+# Emil Kowalski skills (project)
+
+When working on UI polish, animations, transitions, press feedback, sheets, or empty states in this Flutter app, read and follow the matching project skills under `.cursor/skills/`:
+
+- `emil-design-eng` — core taste, easing, duration, press feedback
+- `animate-expo` — mobile motion rules (adapt RN guidance to Flutter: transform/opacity, no tab slide, press-in scale, haptics)
+- `review-animations` / `improve-animations` — audit existing motion
+- `find-animation-opportunities` — where motion helps vs hurts
+- `apple-design` — spatial/fluid motion principles
+- `break-ui` — stress-test with long text / empty / edge data
+
+Hard rules that apply here:
+
+1. **Tab switches: no page slide/fade** — tabs are peers; indicator bubble may move.
+2. **Ease-out for enter/exit UI** — prefer `Cubic(0.23, 1, 0.32, 1)`; never ease-in for UI.
+3. **Press feedback** — scale ~0.97 in 100–150ms on press-in; optional `HapticFeedback.selectionClick`.
+4. **Keep frequent UI under ~200–300ms.**
+5. Prefer **transform + opacity**; avoid layout-driving animation every frame.

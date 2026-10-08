@@ -399,7 +399,7 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
           16,
           20,
           16,
-          BottomNavigationBarWidget.occupiedHeight(context) + 20,
+          BottomNavigationBarWidget.contentBottomPadding(context),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

@@ -1,13 +1,14 @@
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/catalog/screens/home_screen.dart';
 import '../l10n/locale_controller.dart';
+import '../motion/app_motion.dart';
 
-/// Плавающее нижнее меню: frosted glass + скользящий пузырь (Telegram-стиль).
+/// Плавающее нижнее меню: полупрозрачный бар + скользящий пузырь (Telegram-стиль).
+/// Без BackdropFilter — blur под модалками/диалогами давал чёрный экран на части устройств.
 class BottomNavigationBarWidget extends ConsumerWidget {
   final int selectedIndex;
   final ValueChanged<int>? onTabSelected;
@@ -27,6 +28,11 @@ class BottomNavigationBarWidget extends ConsumerWidget {
   static double occupiedHeight(BuildContext context) {
     final bottomInset = MediaQuery.viewPaddingOf(context).bottom;
     return barHeight + _topPad + _bottomExtra + bottomInset;
+  }
+
+  /// Отступ под CTA над плавающим меню (кнопки «Оформить», «Удалить» и т.п.).
+  static double contentBottomPadding(BuildContext context, {double extra = 24}) {
+    return occupiedHeight(context) + extra;
   }
 
   void _go(BuildContext context, int index) {
@@ -114,23 +120,20 @@ class BottomNavigationBarWidget extends ConsumerWidget {
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(barHeight / 2),
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
-                  child: ColoredBox(
-                    color: const Color(0xE6FFFFFF),
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(barHeight / 2),
-                        border: Border.all(
-                          color: Colors.black.withValues(alpha: 0.06),
-                          width: 0.8,
-                        ),
+                child: ColoredBox(
+                  color: const Color(0xF2FFFFFF),
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(barHeight / 2),
+                      border: Border.all(
+                        color: Colors.black.withValues(alpha: 0.06),
+                        width: 0.8,
                       ),
-                      child: _LiquidBubbleNav(
-                        items: items,
-                        selectedIndex: index,
-                        onChanged: (i) => _go(context, i),
-                      ),
+                    ),
+                    child: _LiquidBubbleNav(
+                      items: items,
+                      selectedIndex: index,
+                      onChanged: (i) => _go(context, i),
                     ),
                   ),
                 ),
@@ -178,7 +181,8 @@ class _LiquidBubbleNavState extends State<_LiquidBubbleNav>
   late double _fromIndex;
   late double _toIndex;
 
-  static const _curve = Cubic(0.22, 1.0, 0.36, 1.0);
+  // Tab indicator is hit tens of times/day → keep under ~200ms.
+  static const _curve = AppMotion.easeOut;
 
   @override
   void initState() {
@@ -187,7 +191,7 @@ class _LiquidBubbleNavState extends State<_LiquidBubbleNav>
     _toIndex = _fromIndex;
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 420),
+      duration: AppMotion.chip,
       value: 1,
     );
   }
@@ -275,7 +279,7 @@ class _LiquidBubbleNavState extends State<_LiquidBubbleNav>
   }
 }
 
-class _NavTabButton extends StatelessWidget {
+class _NavTabButton extends StatefulWidget {
   final _NavItem item;
   final bool selected;
   final VoidCallback onTap;
@@ -286,80 +290,99 @@ class _NavTabButton extends StatelessWidget {
     required this.onTap,
   });
 
+  @override
+  State<_NavTabButton> createState() => _NavTabButtonState();
+}
+
+class _NavTabButtonState extends State<_NavTabButton> {
   static const _brand = Color(0xFF9C27B0);
   static const _muted = Color(0xFF5C5C5C);
 
+  bool _pressed = false;
+
   @override
   Widget build(BuildContext context) {
-    final color = selected ? _brand : _muted;
+    final color = widget.selected ? _brand : _muted;
 
-    return InkWell(
-      onTap: onTap,
-      customBorder: const StadiumBorder(),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 6),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            SizedBox(
-              width: 34,
-              height: 26,
-              child: Stack(
-                alignment: Alignment.center,
-                clipBehavior: Clip.none,
-                children: [
-                  AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 200),
-                    child: Icon(
-                      selected ? item.selectedIcon : item.icon,
-                      key: ValueKey(selected),
-                      size: selected ? 24 : 22,
+    // Press-in scale (emil-design-eng / animate-expo): feedback on press-in,
+    // ~120ms, scale 0.97 — not on hover (mobile has none).
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTapDown: (_) => setState(() => _pressed = true),
+      onTapUp: (_) => setState(() => _pressed = false),
+      onTapCancel: () => setState(() => _pressed = false),
+      onTap: () {
+        HapticFeedback.selectionClick();
+        widget.onTap();
+      },
+      child: AnimatedScale(
+        scale: _pressed ? AppMotion.pressScale : 1.0,
+        duration: AppMotion.press,
+        curve: AppMotion.easeOut,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              SizedBox(
+                width: 34,
+                height: 26,
+                child: Stack(
+                  alignment: Alignment.center,
+                  clipBehavior: Clip.none,
+                  children: [
+                    Icon(
+                      widget.selected ? widget.item.selectedIcon : widget.item.icon,
+                      size: widget.selected ? 24 : 22,
                       color: color,
                     ),
-                  ),
-                  if (item.badgeCount > 0)
-                    Positioned(
-                      right: 0,
-                      top: -2,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 4,
-                          vertical: 1,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFE53935),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.white, width: 1.2),
-                        ),
-                        constraints: const BoxConstraints(minWidth: 16),
-                        child: Text(
-                          item.badgeCount > 99 ? '99+' : '${item.badgeCount}',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 9,
-                            fontWeight: FontWeight.w700,
-                            height: 1.2,
+                    if (widget.item.badgeCount > 0)
+                      Positioned(
+                        right: 0,
+                        top: -2,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 4,
+                            vertical: 1,
                           ),
-                          textAlign: TextAlign.center,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFE53935),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.white, width: 1.2),
+                          ),
+                          constraints: const BoxConstraints(minWidth: 16),
+                          child: Text(
+                            widget.item.badgeCount > 99
+                                ? '99+'
+                                : '${widget.item.badgeCount}',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 9,
+                              fontWeight: FontWeight.w700,
+                              height: 1.2,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
                         ),
                       ),
-                    ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              item.label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 9.5,
-                height: 1.1,
-                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                color: color,
+              const SizedBox(height: 2),
+              Text(
+                widget.item.label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 9.5,
+                  height: 1.1,
+                  fontWeight:
+                      widget.selected ? FontWeight.w700 : FontWeight.w500,
+                  color: color,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

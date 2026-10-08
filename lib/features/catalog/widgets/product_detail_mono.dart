@@ -1,7 +1,10 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+
+import '../../../core/motion/app_motion.dart';
 
 /// Монохромная система для экрана товара (Hero + Sticky Action).
 abstract final class ProductDetailMono {
@@ -15,7 +18,8 @@ abstract final class ProductDetailMono {
   static const heroBg = Color(0xFFF3F4F6);
   static const star = Color(0xFFEAB308);
 
-  static const curve = Cubic(0.4, 0, 0.2, 1);
+  /// Strong ease-out (Emil) — not Material's weak ease-in-out.
+  static const curve = AppMotion.easeOut;
 
   static TextStyle tag([Color? color]) => GoogleFonts.plusJakartaSans(
         fontSize: 10,
@@ -84,19 +88,22 @@ class _HapticScaleState extends State<HapticScale> {
 
   @override
   Widget build(BuildContext context) {
+    final enabled = widget.onTap != null;
     return GestureDetector(
-      onTapDown: widget.onTap == null ? null : (_) => setState(() => _pressed = true),
-      onTapUp: widget.onTap == null
-          ? null
-          : (_) {
+      behavior: HitTestBehavior.opaque,
+      onTapDown: enabled ? (_) => setState(() => _pressed = true) : null,
+      onTapCancel: enabled ? () => setState(() => _pressed = false) : null,
+      onTapUp: enabled
+          ? (_) {
               setState(() => _pressed = false);
+              HapticFeedback.selectionClick();
               widget.onTap?.call();
-            },
-      onTapCancel: () => setState(() => _pressed = false),
+            }
+          : null,
       child: AnimatedScale(
-        scale: _pressed ? 0.95 : 1,
-        duration: const Duration(milliseconds: 160),
-        curve: ProductDetailMono.curve,
+        scale: _pressed ? AppMotion.pressScale : 1,
+        duration: AppMotion.press,
+        curve: AppMotion.easeOut,
         child: widget.child,
       ),
     );

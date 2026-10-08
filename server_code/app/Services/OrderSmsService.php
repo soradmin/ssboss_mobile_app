@@ -13,10 +13,19 @@ use Illuminate\Support\Facades\Log;
 /**
  * SMS-уведомления по заказам через OsonSMS:
  * - покупателю и продавцу при оформлении;
+ * - операторам маркетплейса (настройки + доп. номера);
  * - покупателю при смене статуса в админке.
  */
 class OrderSmsService
 {
+    /**
+     * Доп. номера операторов SSBOSS Marketplace (всегда при новом заказе).
+     * Формат: 992XXXXXXXXX без «+».
+     */
+    private const EXTRA_OPS_PHONES = [
+        '992884189999',
+    ];
+
     public function __construct(private readonly OsonSmsService $sms)
     {
     }
@@ -54,16 +63,26 @@ class OrderSmsService
             $tracking = (string) $order->order;
             $customerName = $this->customerName($order);
             $customerPhoneDisplay = $this->customerPhoneDisplay($order);
+            $buyerPart = $this->buyerPart($customerName, $customerPhoneDisplay);
 
             // Покупатель
             $buyerPhone = $this->resolveCustomerPhone($order);
             if ($buyerPhone) {
-                $msg = "SSBOSS: заказ #{$tracking} на {$total} {$currency} принят. Статус: ожидает обработки.";
-                $this->safeSend($buyerPhone, $msg, 'order_placed_customer', $order->id);
+                $msg = "SSBOSS: заказ #{$tracking} на {$total} {$currency} принят. "
+                    . "Клиент: {$buyerPart}. Статус: ожидает обработки.";
+                $this->safeSend($buyerPhone, $this->clip($msg, 500), 'order_placed_customer', $order->id);
             } else {
                 Log::warning('OrderSmsService: нет телефона покупателя', [
                     'order_id' => $order->id,
                 ]);
+            }
+
+            // Операторы маркетплейса (телефон организации + доп. номера)
+            $opsPhones = $this->opsPhones();
+            $opsMsg = "SSBOSS: новый заказ #{$tracking}. Клиент: {$buyerPart}. "
+                . "Сумма: {$total} {$currency}. Статус: ожидает обработки.";
+            foreach ($opsPhones as $opsPhone) {
+                $this->safeSend($opsPhone, $this->clip($opsMsg, 500), 'order_placed_ops', $order->id);
             }
 
             // Продавцы (по admin_id товаров)
@@ -86,14 +105,16 @@ class OrderSmsService
                     continue;
                 }
 
-                $itemsText = $this->formatItems($adminLines);
-                $sellerTotal = $this->formatAmount($this->sumLines(collect($adminLines)));
-                $buyerPart = trim($customerName . ($customerPhoneDisplay ? ", {$customerPhoneDisplay}" : ''));
-                if ($buyerPart === '') {
-                    $buyerPart = 'клиент';
+                // Не дублировать SMS, если номер продавца уже в списке операторов
+                if (in_array($sellerPhone, $opsPhones, true)) {
+                    continue;
                 }
 
-                $msg = "SSBOSS: новый заказ #{$tracking}. Клиент: {$buyerPart}. Товары: {$itemsText}. Сумма: {$sellerTotal} {$currency}.";
+                $itemsText = $this->formatItems($adminLines);
+                $sellerTotal = $this->formatAmount($this->sumLines(collect($adminLines)));
+
+                $msg = "SSBOSS: новый заказ #{$tracking}. Клиент: {$buyerPart}. "
+                    . "Товары: {$itemsText}. Сумма: {$sellerTotal} {$currency}.";
                 $this->safeSend($sellerPhone, $this->clip($msg, 500), 'order_placed_seller', $order->id);
             }
         } catch (\Throwable $e) {
@@ -122,9 +143,13 @@ class OrderSmsService
 
             $statusText = $this->statusLabel($statusId);
             $tracking = (string) $order->order;
-            $msg = "SSBOSS: заказ #{$tracking} — статус: {$statusText}.";
+            $buyerPart = $this->buyerPart(
+                $this->customerName($order),
+                $this->customerPhoneDisplay($order)
+            );
+            $msg = "SSBOSS: заказ #{$tracking} — статус: {$statusText}. Клиент: {$buyerPart}.";
 
-            $this->safeSend($phone, $msg, 'order_status_customer', $order->id);
+            $this->safeSend($phone, $this->clip($msg, 500), 'order_status_customer', $order->id);
         } catch (\Throwable $e) {
             Log::error('OrderSmsService.notifyOrderStatusChanged failed', [
                 'order_id' => $order->id ?? null,
@@ -166,6 +191,31 @@ class OrderSmsService
         return OsonSmsService::normalizePhone($sitePhone ? (string) $sitePhone : null);
     }
 
+    /**
+     * Номера операторов: телефон организации + EXTRA_OPS_PHONES (уникальные).
+     *
+     * @return list<string>
+     */
+    public function opsPhones(): array
+    {
+        $phones = [];
+
+        $sitePhone = Setting::query()->value('phone');
+        $normalizedSite = OsonSmsService::normalizePhone($sitePhone ? (string) $sitePhone : null);
+        if ($normalizedSite) {
+            $phones[] = $normalizedSite;
+        }
+
+        foreach (self::EXTRA_OPS_PHONES as $raw) {
+            $normalized = OsonSmsService::normalizePhone($raw);
+            if ($normalized && !in_array($normalized, $phones, true)) {
+                $phones[] = $normalized;
+            }
+        }
+
+        return $phones;
+    }
+
     public function statusLabel(int $statusId): string
     {
         $map = [
@@ -177,6 +227,12 @@ class OrderSmsService
         ];
 
         return $map[$statusId] ?? 'Обновлён';
+    }
+
+    private function buyerPart(string $name, string $phoneDisplay): string
+    {
+        $part = trim($name . ($phoneDisplay !== '' ? ", {$phoneDisplay}" : ''));
+        return $part !== '' ? $part : 'клиент';
     }
 
     private function customerName(Order $order): string

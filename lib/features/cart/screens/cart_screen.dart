@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/widgets/bottom_navigation_bar.dart';
+import '../../../core/widgets/pressable_scale.dart';
 import '../../../core/l10n/locale_controller.dart';
 import '../../../core/network/network_status.dart';
 import '../controllers/cart_controller.dart';
@@ -47,7 +49,14 @@ class CartScreen extends ConsumerWidget {
         ),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.of(context).maybePop(),
+          onPressed: () {
+            // Вкладка `/cart` — корень shell-ветки: maybePop() ничего не делает.
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/');
+            }
+          },
         ),
         actions: [
           IconButton(
@@ -238,9 +247,11 @@ class _LocalCartView extends ConsumerWidget {
                                           it.product.name,
                                           maxLines: 2,
                                           overflow: TextOverflow.ellipsis,
+                                          softWrap: true,
                                           style: const TextStyle(
                                             fontWeight: FontWeight.w500,
                                             color: textPrimary,
+                                            height: 1.25,
                                           ),
                                         ),
                                         if (it.selectedAttributes.isNotEmpty) ...[
@@ -269,6 +280,7 @@ class _LocalCartView extends ConsumerWidget {
                                                 minHeight: 36,
                                               ),
                                               onPressed: () async {
+                                                HapticFeedback.selectionClick();
                                                 await ref.read(cartProvider.notifier).updateQuantityWithSync(
                                                   it.product.id,
                                                   it.qty - 1,
@@ -292,6 +304,7 @@ class _LocalCartView extends ConsumerWidget {
                                                 minHeight: 36,
                                               ),
                                               onPressed: () async {
+                                                HapticFeedback.selectionClick();
                                                 await ref.read(cartProvider.notifier).updateQuantityWithSync(
                                                   it.product.id,
                                                   it.qty + 1,
@@ -389,7 +402,7 @@ class _LocalCartView extends ConsumerWidget {
                   16,
                   8,
                   16,
-                  BottomNavigationBarWidget.occupiedHeight(context) + 8,
+                  BottomNavigationBarWidget.contentBottomPadding(context),
                 ),
                 child: Container(
                   width: double.infinity,
@@ -435,45 +448,37 @@ class _LocalCartView extends ConsumerWidget {
                           ],
                         ),
                         const SizedBox(height: 12),
-                        Container(
-                          width: double.infinity,
-                          decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: [
-                                Color(0xFF9C27B0),
-                                Color(0xFFE040FB),
-                              ],
-                              stops: [0.0, 1.0],
+                        PressableScale(
+                          onTap: () => context.push('/shipping'),
+                          child: Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 14,
                             ),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: ElevatedButton(
-                            onPressed: () {
-                              context.push('/shipping');
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.transparent,
-                              shadowColor: Colors.transparent,
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 14,
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: [
+                                  Color(0xFF9C27B0),
+                                  Color(0xFFE040FB),
+                                ],
+                                stops: [0.0, 1.0],
                               ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
+                              borderRadius: BorderRadius.circular(12),
                             ),
                             child: Text(
                               context.tr('cart.checkout'),
                               textAlign: TextAlign.center,
                               maxLines: 2,
                               softWrap: true,
+                              overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
                                 fontSize: 15,
                                 fontWeight: FontWeight.bold,
                                 height: 1.2,
+                                color: Colors.white,
                               ),
                             ),
                           ),

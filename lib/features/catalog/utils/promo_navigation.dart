@@ -8,6 +8,9 @@ import '../models/slider.dart';
 /// Навигация с баннеров / слайдеров (source_type + url/slug).
 ///
 /// Константы сервера: CATEGORY=1, SUB_CATEGORY=2, TAG=3, BRAND=4, PRODUCT=5, URL=6.
+///
+/// Важно: у HomeSlider поле `slug`/`url` — это название промо, а не slug категории.
+/// Категории/бренды/товары лежат в source_* и на сайте открываются через `home_spm`.
 class PromoNavigation {
   PromoNavigation._();
 
@@ -37,9 +40,10 @@ class PromoNavigation {
       }
     }
 
-    if ((source == 1 || source == 2) && slug != null && slug.isNotEmpty) {
+    // Категория: slug баннера часто = title промо. Надёжнее фильтр `banner`.
+    if ((source == 1 || source == 2 || source == 3) && banner.id > 0) {
       final q = <String, String>{
-        'category': slug,
+        'banner': '${banner.id}',
         if (title.isNotEmpty) 'title': title,
       };
       context.push(Uri(path: '/catalog/products', queryParameters: q).toString());
@@ -49,7 +53,6 @@ class PromoNavigation {
     if (await _tryOpenInternalOrExternal(context, url)) return;
     if (await _tryOpenInternalOrExternal(context, slug)) return;
 
-    // Fallback: отфильтрованный список товаров по banner id.
     if (banner.id > 0) {
       final q = <String, String>{
         'banner': '${banner.id}',
@@ -71,6 +74,11 @@ class PromoNavigation {
         context.push('/product/$id');
         return;
       }
+      // PRODUCT без явного id — список товаров слайдера (source_products).
+      if (slider.id > 0) {
+        _openSliderProducts(context, slider.id, title);
+        return;
+      }
     }
 
     if (source == 4) {
@@ -83,15 +91,17 @@ class PromoNavigation {
         context.push(Uri(path: '/catalog/products', queryParameters: q).toString());
         return;
       }
+      if (slider.id > 0) {
+        _openSliderProducts(context, slider.id, title);
+        return;
+      }
     }
 
-    if (source == 1 || source == 2) {
-      if (link != null && link.isNotEmpty && !link.startsWith('http')) {
-        final q = <String, String>{
-          'category': link,
-          if (title.isNotEmpty) 'title': title,
-        };
-        context.push(Uri(path: '/catalog/products', queryParameters: q).toString());
+    // CATEGORY / SUB_CATEGORY / TAG — как на сайте: /products?home_spm={id}
+    // Нельзя подставлять slider.slug как category (это title промо).
+    if (source == 1 || source == 2 || source == 3) {
+      if (slider.id > 0) {
+        _openSliderProducts(context, slider.id, title);
         return;
       }
     }
@@ -99,12 +109,16 @@ class PromoNavigation {
     if (await _tryOpenInternalOrExternal(context, link)) return;
 
     if (slider.id > 0) {
-      final q = <String, String>{
-        'home_spm': '${slider.id}',
-        if (title.isNotEmpty) 'title': title,
-      };
-      context.push(Uri(path: '/catalog/products', queryParameters: q).toString());
+      _openSliderProducts(context, slider.id, title);
     }
+  }
+
+  static void _openSliderProducts(BuildContext context, int sliderId, String title) {
+    final q = <String, String>{
+      'home_spm': '$sliderId',
+      if (title.isNotEmpty) 'title': title,
+    };
+    context.push(Uri(path: '/catalog/products', queryParameters: q).toString());
   }
 
   static Future<bool> _tryOpenInternalOrExternal(

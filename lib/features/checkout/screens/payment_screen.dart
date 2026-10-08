@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/widgets/bottom_navigation_bar.dart';
+import '../../../core/widgets/pressable_scale.dart';
 import '../../../core/l10n/locale_controller.dart';
 import '../../../theme.dart';
 import '../models/payment_method.dart';
@@ -320,25 +321,40 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
             ),
             const SizedBox(height: 12),
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('${widget.addressType == 'pickup' ? context.tr('checkout.pickup') : context.tr('orders.delivery_address')}:'),
+                Flexible(
+                  flex: 2,
+                  child: Text(
+                    '${widget.addressType == 'pickup' ? context.tr('checkout.pickup') : context.tr('orders.delivery_address')}:',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 8),
                 Expanded(
+                  flex: 3,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       Text(
                         widget.selectedAddressName,
                         textAlign: TextAlign.end,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                         style: const TextStyle(fontWeight: FontWeight.w500),
                       ),
-                      if (widget.addressFull != null && widget.addressFull!.isNotEmpty)
+                      if (widget.addressFull != null &&
+                          widget.addressFull!.isNotEmpty)
                         Text(
                           widget.addressFull!,
                           textAlign: TextAlign.end,
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             fontSize: 12,
                             color: Colors.grey[600],
+                            height: 1.3,
                           ),
                         ),
                     ],
@@ -543,7 +559,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
             16,
             16,
             16,
-            BottomNavigationBarWidget.occupiedHeight(context) + 8,
+            BottomNavigationBarWidget.contentBottomPadding(context),
           ),
           decoration: BoxDecoration(
             color: Colors.white,
@@ -555,9 +571,11 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
               ),
             ],
           ),
-          child: SizedBox(
-            width: double.infinity,
+          child: PressableScale(
+            onTap: _isCreatingOrder ? null : _createOrder,
             child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
               decoration: BoxDecoration(
                 gradient: _isCreatingOrder
                     ? null
@@ -573,42 +591,31 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                 color: _isCreatingOrder ? Colors.grey[300] : null,
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: ElevatedButton(
-                onPressed: _isCreatingOrder ? null : _createOrder,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.transparent,
-                  shadowColor: Colors.transparent,
-                  foregroundColor: Colors.white,
-                  disabledForegroundColor: Colors.grey[600],
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 14,
-                    horizontal: 12,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                child: _isCreatingOrder
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                        ),
-                      )
-                    : Text(
-                        context.tr('cart.checkout'),
-                        textAlign: TextAlign.center,
-                        maxLines: 2,
-                        softWrap: true,
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                          height: 1.2,
+              alignment: Alignment.center,
+              child: _isCreatingOrder
+                  ? SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          Colors.grey[600]!,
                         ),
                       ),
-              ),
+                    )
+                  : Text(
+                      context.tr('cart.checkout'),
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      softWrap: true,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        height: 1.2,
+                        color: Colors.white,
+                      ),
+                    ),
             ),
           ),
         ),

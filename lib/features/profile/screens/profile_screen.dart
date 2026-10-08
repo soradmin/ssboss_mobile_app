@@ -110,28 +110,33 @@ class _UserProfileViewState extends ConsumerState<_UserProfileView>
       body: CustomScrollView(
         physics: const BouncingScrollPhysics(),
         slivers: [
-          // Современная SliverAppBar с градиентным фоном
+          // Шапка уезжает при скролле целиком (без pinned — иначе остаётся
+          // прозрачная «ширма» поверх пунктов меню).
           SliverAppBar(
             expandedHeight: 320,
             floating: false,
-            pinned: true,
-            backgroundColor: Colors.transparent,
+            pinned: false,
+            stretch: false,
+            backgroundColor: const Color(0xFF9C27B0),
             elevation: 0,
+            automaticallyImplyLeading: false,
             flexibleSpace: FlexibleSpaceBar(
+              collapseMode: CollapseMode.pin,
               background: Container(
                 decoration: const BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                     colors: [
-                      Color(0xFF9C27B0), // Основной фиолетовый
-                      Color(0xFFE040FB), // Светло-фиолетовый
-                      Color(0xFFF8BBD9), // Розово-фиолетовый
+                      Color(0xFF9C27B0),
+                      Color(0xFFE040FB),
+                      Color(0xFFF8BBD9),
                     ],
                     stops: [0.0, 0.6, 1.0],
                   ),
                 ),
                 child: SafeArea(
+                  bottom: false,
                   child: _buildModernProfileHeader(),
                 ),
               ),
@@ -150,7 +155,7 @@ class _UserProfileViewState extends ConsumerState<_UserProfileView>
                   left: 20,
                   right: 20,
                   top: 30,
-                  bottom: MediaQuery.of(context).viewPadding.bottom + 20,
+                  bottom: BottomNavigationBarWidget.contentBottomPadding(context),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
